@@ -13,7 +13,12 @@ import { Client } from './node_modules/@modelcontextprotocol/sdk/dist/esm/client
 import { StdioClientTransport } from './node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js';
 
 // Test timeout value (in ms)
-const TEST_TIMEOUT = 30000;
+const TEST_TIMEOUT = 60000; // Increased to 60s for cross-platform testing
+
+// Test app IDs
+const ANDROID_APP_ID = 'com.spotify.music';
+const IOS_APP_ID = '324684580'; // Spotify App Store ID 
+const IOS_APP_ID_REVIEWS = '284882215'; // Facebook App - confirmed working for reviews
 
 /**
  * Helper function to wait for a specific amount of time
@@ -180,23 +185,42 @@ async function runTests() {
       await wait(1000);
       
       console.log('  Getting details for Spotify on Android...');
-      const detailsResult = await client.callTool({
+      const androidDetailsResult = await client.callTool({
         name: "get_app_details",
         arguments: {
-          appId: "com.spotify.music",
+          appId: ANDROID_APP_ID,
           platform: "android"
         }
       });
       
       // Parse the result
-      const detailsData = JSON.parse(detailsResult.content[0].text);
+      const androidDetailsData = JSON.parse(androidDetailsResult.content[0].text);
       
-      assert(detailsData.appId === "com.spotify.music", "App ID should be 'com.spotify.music'");
-      assert(detailsData.platform === "android", "Platform should be 'android'");
-      assert(detailsData.details, "Details should be present");
-      assert(detailsData.details.title.toLowerCase().includes("spotify"), "Title should include 'spotify'");
+      assert(androidDetailsData.appId === ANDROID_APP_ID, `App ID should be '${ANDROID_APP_ID}'`);
+      assert(androidDetailsData.platform === "android", "Platform should be 'android'");
+      assert(androidDetailsData.details, "Details should be present");
+      assert(androidDetailsData.details.title.toLowerCase().includes("spotify"), "Title should include 'spotify'");
       
-      console.log('✅ get_app_details tool test passed');
+      // Test iOS app details
+      await wait(1000);
+      console.log('  Getting details for Spotify on iOS...');
+      const iosDetailsResult = await client.callTool({
+        name: "get_app_details",
+        arguments: {
+          appId: IOS_APP_ID,
+          platform: "ios"
+        }
+      });
+      
+      // Parse the result
+      const iosDetailsData = JSON.parse(iosDetailsResult.content[0].text);
+      
+      assert(iosDetailsData.appId === IOS_APP_ID, `App ID should be '${IOS_APP_ID}'`);
+      assert(iosDetailsData.platform === "ios", "Platform should be 'ios'");
+      assert(iosDetailsData.details, "Details should be present");
+      assert(iosDetailsData.details.title.toLowerCase().includes("spotify"), "Title should include 'spotify'");
+      
+      console.log('✅ get_app_details tool test passed for both platforms');
     } catch (error) {
       console.error('❌ get_app_details test failed:', error.message);
       failedTests.push('get_app_details');
@@ -207,8 +231,9 @@ async function runTests() {
       console.log('\nTest 5: Test analyze_top_keywords tool');
       await wait(1000);
       
+      // Test iOS first
       console.log('  Analyzing keyword "fitness tracker" on iOS...');
-      const keywordResult = await client.callTool({
+      const iosKeywordResult = await client.callTool({
         name: "analyze_top_keywords",
         arguments: {
           keyword: "fitness tracker",
@@ -218,15 +243,36 @@ async function runTests() {
       });
       
       // Parse the result
-      const keywordData = JSON.parse(keywordResult.content[0].text);
+      const iosKeywordData = JSON.parse(iosKeywordResult.content[0].text);
       
-      assert(keywordData.keyword === "fitness tracker", "Keyword should be 'fitness tracker'");
-      assert(keywordData.platform === "ios", "Platform should be 'ios'");
-      assert(keywordData.topApps, "Top apps should be present");
-      assert(Array.isArray(keywordData.topApps), "Top apps should be an array");
-      assert(keywordData.brandPresence, "Brand presence should be present");
+      assert(iosKeywordData.keyword === "fitness tracker", "Keyword should be 'fitness tracker'");
+      assert(iosKeywordData.platform === "ios", "Platform should be 'ios'");
+      assert(iosKeywordData.topApps, "Top apps should be present");
+      assert(Array.isArray(iosKeywordData.topApps), "Top apps should be an array");
+      assert(iosKeywordData.brandPresence, "Brand presence should be present");
       
-      console.log('✅ analyze_top_keywords tool test passed');
+      // Test Android 
+      await wait(1000);
+      console.log('  Analyzing keyword "fitness tracker" on Android...');
+      const androidKeywordResult = await client.callTool({
+        name: "analyze_top_keywords",
+        arguments: {
+          keyword: "fitness tracker",
+          platform: "android",
+          num: 5
+        }
+      });
+      
+      // Parse the result
+      const androidKeywordData = JSON.parse(androidKeywordResult.content[0].text);
+      
+      assert(androidKeywordData.keyword === "fitness tracker", "Keyword should be 'fitness tracker'");
+      assert(androidKeywordData.platform === "android", "Platform should be 'android'");
+      assert(androidKeywordData.topApps, "Top apps should be present");
+      assert(Array.isArray(androidKeywordData.topApps), "Top apps should be an array");
+      assert(androidKeywordData.brandPresence, "Brand presence should be present");
+      
+      console.log('✅ analyze_top_keywords tool test passed for both platforms');
     } catch (error) {
       console.error('❌ analyze_top_keywords test failed:', error.message);
       failedTests.push('analyze_top_keywords');
@@ -237,26 +283,48 @@ async function runTests() {
       console.log('\nTest 6: Test analyze_reviews tool');
       await wait(1000);
       
+      // Test Android reviews
       console.log('  Analyzing reviews for Spotify on Android...');
-      const reviewsResult = await client.callTool({
+      const androidReviewsResult = await client.callTool({
         name: "analyze_reviews",
         arguments: {
-          appId: "com.spotify.music",
+          appId: ANDROID_APP_ID,
           platform: "android",
           num: 50
         }
       });
       
       // Parse the result
-      const reviewsData = JSON.parse(reviewsResult.content[0].text);
+      const androidReviewsData = JSON.parse(androidReviewsResult.content[0].text);
       
-      assert(reviewsData.appId === "com.spotify.music", "App ID should be 'com.spotify.music'");
-      assert(reviewsData.platform === "android", "Platform should be 'android'");
-      assert(reviewsData.analysis, "Analysis should be present");
-      assert(reviewsData.analysis.sentimentBreakdown, "Sentiment breakdown should be present");
-      assert(reviewsData.analysis.keywordFrequency, "Keyword frequency should be present");
+      assert(androidReviewsData.appId === ANDROID_APP_ID, `App ID should be '${ANDROID_APP_ID}'`);
+      assert(androidReviewsData.platform === "android", "Platform should be 'android'");
+      assert(androidReviewsData.analysis, "Analysis should be present");
+      assert(androidReviewsData.analysis.sentimentBreakdown, "Sentiment breakdown should be present");
+      assert(androidReviewsData.analysis.keywordFrequency, "Keyword frequency should be present");
       
-      console.log('✅ analyze_reviews tool test passed');
+      // Test iOS reviews
+      await wait(1000);
+      console.log('  Analyzing reviews for Facebook on iOS...');
+      const iosReviewsResult = await client.callTool({
+        name: "analyze_reviews",
+        arguments: {
+          appId: IOS_APP_ID_REVIEWS,
+          platform: "ios",
+          num: 50
+        }
+      });
+      
+      // Parse the result
+      const iosReviewsData = JSON.parse(iosReviewsResult.content[0].text);
+      
+      assert(iosReviewsData.appId === IOS_APP_ID_REVIEWS, `App ID should be '${IOS_APP_ID_REVIEWS}'`);
+      assert(iosReviewsData.platform === "ios", "Platform should be 'ios'");
+      assert(iosReviewsData.analysis, "Analysis should be present");
+      assert(iosReviewsData.analysis.sentimentBreakdown, "Sentiment breakdown should be present");
+      assert(iosReviewsData.analysis.keywordFrequency, "Keyword frequency should be present");
+      
+      console.log('✅ analyze_reviews tool test passed for both platforms');
     } catch (error) {
       console.error('❌ analyze_reviews test failed:', error.message);
       failedTests.push('analyze_reviews');
@@ -279,15 +347,8 @@ async function runTests() {
     // Display test summary
     console.log('\n----- TEST SUMMARY -----');
     
-    // Check if the search_app test passed
-    const searchAppFailed = failedTests.includes('search_app');
-    const configFailed = failedTests.includes('Server configuration');
-    const toolsFailed = failedTests.includes('Available tools');
-    
-    // Only the first three tests should pass now
-    if (!searchAppFailed && !configFailed && !toolsFailed) {
-      console.log('Core functionality tests passed! 🎉');
-      console.log('Note: Additional tool implementations (get_app_details, analyze_top_keywords, analyze_reviews) are stubs.');
+    if (failedTests.length === 0) {
+      console.log('All tests passed for both Android and iOS platforms! 🎉');
     } else {
       console.log(`${failedTests.length} tests failed:`);
       failedTests.forEach(test => console.log(`- ${test}`));

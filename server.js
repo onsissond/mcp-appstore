@@ -472,12 +472,35 @@ server.tool(
         // For iOS, we might need to fetch multiple pages
         while (allReviews.length < num && page <= 10) { // App Store only allows 10 pages
           try {
-            const pageReviews = await memoizedAppStore.reviews({
-              appId,
-              page,
-              sort: sortType,
-              country
-            });
+            // For iOS apps, we need to use id instead of appId
+            // The app-store-scraper reviews method requires the numeric ID
+            let iosParams = {};
+            
+            // Check if the appId is already a numeric ID
+            if (/^\d+$/.test(appId)) {
+              iosParams = {
+                id: appId,
+                page,
+                sort: sortType,
+                country
+              };
+            } else {
+              // First we need to fetch the app to get its numeric ID
+              try {
+                const appDetails = await memoizedAppStore.app({ appId, country });
+                iosParams = {
+                  id: appDetails.id.toString(),
+                  page,
+                  sort: sortType,
+                  country
+                };
+              } catch (appError) {
+                console.error(`Could not fetch app details for ${appId}:`, appError.message);
+                break;
+              }
+            }
+            
+            const pageReviews = await memoizedAppStore.reviews(iosParams);
             
             if (!pageReviews || pageReviews.length === 0) {
               break; // No more reviews

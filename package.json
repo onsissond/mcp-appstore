@@ -7,6 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "node test.js",
+    "platform-test": "node platform-test.js",
+    "find-ios-reviews": "node find-ios-reviews.js",
     "mock-test": "node mock-test.js",
     "demo": "node demo.js"
   },
