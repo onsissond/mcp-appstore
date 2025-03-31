@@ -6,6 +6,9 @@
  * - get_app_details
  * - analyze_top_keywords
  * - analyze_reviews
+ * - get_pricing_details
+ * - get_developer_info
+ * - get_version_history
  */
 
 import assert from 'assert';
@@ -19,6 +22,10 @@ const TEST_TIMEOUT = 60000; // Increased to 60s for cross-platform testing
 const ANDROID_APP_ID = 'com.spotify.music';
 const IOS_APP_ID = '324684580'; // Spotify App Store ID 
 const IOS_APP_ID_REVIEWS = '284882215'; // Facebook App - confirmed working for reviews
+
+// Test developer IDs
+const ANDROID_DEV_ID = 'Spotify AB';
+const IOS_DEV_ID = '324684580';  // Spotify developer ID
 
 /**
  * Helper function to wait for a specific amount of time
@@ -87,41 +94,37 @@ async function runTests() {
     try {
       console.log('\nTest 2: Verify available tools');
       
-      // Test each tool exists by calling it with minimal arguments
-      await client.callTool({
-        name: "search_app",
-        arguments: {
-          term: "test",
-          platform: "android",
-          num: 1
-        }
-      });
+      // Get tools list
+      const expectedTools = [
+        "search_app", 
+        "get_app_details", 
+        "analyze_top_keywords", 
+        "analyze_reviews",
+        "get_pricing_details",
+        "get_developer_info",
+        "get_version_history"
+      ];
       
-      await client.callTool({
-        name: "get_app_details",
-        arguments: {
-          appId: "test.app",
-          platform: "android"
+      // Check each tool exists
+      let toolErrors = [];
+      for (const toolName of expectedTools) {
+        try {
+          console.log(`  Checking tool: ${toolName}`);
+          // Attempt a simple call with minimal valid args
+          await client.callTool({
+            name: toolName,
+            arguments: getMinimalArgs(toolName)
+          });
+        } catch (err) {
+          toolErrors.push(`${toolName}: ${err.message}`);
         }
-      });
+        await wait(500);
+      }
       
-      await client.callTool({
-        name: "analyze_top_keywords",
-        arguments: {
-          keyword: "test",
-          platform: "ios"
-        }
-      });
+      if (toolErrors.length > 0) {
+        throw new Error(`Some tools failed validation: ${toolErrors.join(', ')}`);
+      }
       
-      await client.callTool({
-        name: "analyze_reviews",
-        arguments: {
-          appId: "test.app",
-          platform: "android"
-        }
-      });
-      
-      // If we got here, all tools are available
       console.log('✅ Available tools verified');
     } catch (error) {
       console.error('❌ Available tools test failed:', error.message);
@@ -330,6 +333,164 @@ async function runTests() {
       failedTests.push('analyze_reviews');
     }
     
+    // Test 7: Test get_pricing_details tool
+    try {
+      console.log('\nTest 7: Test get_pricing_details tool');
+      await wait(1000);
+      
+      // Test Android pricing
+      console.log('  Getting pricing details for Spotify on Android...');
+      const androidPricingResult = await client.callTool({
+        name: "get_pricing_details",
+        arguments: {
+          appId: ANDROID_APP_ID,
+          platform: "android"
+        }
+      });
+      
+      // Parse the result
+      const androidPricingData = JSON.parse(androidPricingResult.content[0].text);
+      
+      assert(androidPricingData.appId === ANDROID_APP_ID, `App ID should be '${ANDROID_APP_ID}'`);
+      assert(androidPricingData.platform === "android", "Platform should be 'android'");
+      assert(androidPricingData.basePrice, "Base price should be present");
+      assert(androidPricingData.inAppPurchases, "In-app purchase info should be present");
+      assert(androidPricingData.monetizationModel, "Monetization model should be present");
+      
+      // Test iOS pricing
+      await wait(1000);
+      console.log('  Getting pricing details for Spotify on iOS...');
+      const iosPricingResult = await client.callTool({
+        name: "get_pricing_details",
+        arguments: {
+          appId: IOS_APP_ID,
+          platform: "ios"
+        }
+      });
+      
+      // Parse the result
+      const iosPricingData = JSON.parse(iosPricingResult.content[0].text);
+      
+      assert(iosPricingData.appId === IOS_APP_ID, `App ID should be '${IOS_APP_ID}'`);
+      assert(iosPricingData.platform === "ios", "Platform should be 'ios'");
+      assert(iosPricingData.basePrice, "Base price should be present");
+      assert(iosPricingData.inAppPurchases, "In-app purchase info should be present");
+      assert(iosPricingData.monetizationModel, "Monetization model should be present");
+      
+      console.log('✅ get_pricing_details tool test passed for both platforms');
+    } catch (error) {
+      console.error('❌ get_pricing_details test failed:', error.message);
+      failedTests.push('get_pricing_details');
+    }
+    
+    // Test 8: Test get_developer_info tool
+    try {
+      console.log('\nTest 8: Test get_developer_info tool');
+      await wait(1000);
+      
+      // Test Android developer info
+      console.log('  Getting developer info for Spotify on Android...');
+      const androidDevResult = await client.callTool({
+        name: "get_developer_info",
+        arguments: {
+          developerId: ANDROID_DEV_ID,
+          platform: "android",
+          includeApps: true
+        }
+      });
+      
+      // Parse the result
+      const androidDevData = JSON.parse(androidDevResult.content[0].text);
+      
+      assert(androidDevData.developerId === ANDROID_DEV_ID, `Developer ID should be '${ANDROID_DEV_ID}'`);
+      assert(androidDevData.platform === "android", "Platform should be 'android'");
+      assert(androidDevData.name, "Developer name should be present");
+      assert(androidDevData.metrics, "Metrics should be present");
+      assert(Array.isArray(androidDevData.apps), "Apps should be an array");
+      
+      // Test iOS developer info
+      await wait(1000);
+      console.log('  Getting developer info for Spotify on iOS...');
+      const iosDevResult = await client.callTool({
+        name: "get_developer_info",
+        arguments: {
+          developerId: IOS_DEV_ID,
+          platform: "ios",
+          includeApps: true
+        }
+      });
+      
+      // Parse the result
+      const iosDevData = JSON.parse(iosDevResult.content[0].text);
+      
+      assert(iosDevData.developerId === IOS_DEV_ID, `Developer ID should be '${IOS_DEV_ID}'`);
+      assert(iosDevData.platform === "ios", "Platform should be 'ios'");
+      assert(iosDevData.name, "Developer name should be present");
+      assert(iosDevData.metrics, "Metrics should be present");
+      assert(Array.isArray(iosDevData.apps), "Apps should be an array");
+      
+      console.log('✅ get_developer_info tool test passed for both platforms');
+    } catch (error) {
+      console.error('❌ get_developer_info test failed:', error.message);
+      failedTests.push('get_developer_info');
+    }
+    
+    // Test 9: Test get_version_history tool
+    try {
+      console.log('\nTest 9: Test get_version_history tool');
+      await wait(1000);
+      
+      // Test Android version history (limited to current version)
+      console.log('  Getting version history for Spotify on Android...');
+      const androidVersionResult = await client.callTool({
+        name: "get_version_history",
+        arguments: {
+          appId: ANDROID_APP_ID,
+          platform: "android"
+        }
+      });
+      
+      // Parse the result
+      const androidVersionData = JSON.parse(androidVersionResult.content[0].text);
+      
+      assert(androidVersionData.appId === ANDROID_APP_ID, `App ID should be '${ANDROID_APP_ID}'`);
+      assert(androidVersionData.platform === "android", "Platform should be 'android'");
+      assert(androidVersionData.platformCapabilities.fullHistoryAvailable === false, "Full history should not be available for Android");
+      assert(androidVersionData.currentVersion, "Current version should be present");
+      assert(Array.isArray(androidVersionData.history), "History should be an array");
+      assert(androidVersionData.history.length === 1, "History should have exactly 1 entry for Android");
+      
+      // Test iOS version history
+      await wait(1000);
+      console.log('  Getting version history for Spotify on iOS...');
+      const iosVersionResult = await client.callTool({
+        name: "get_version_history",
+        arguments: {
+          appId: IOS_APP_ID,
+          platform: "ios"
+        }
+      });
+      
+      // Parse the result
+      const iosVersionData = JSON.parse(iosVersionResult.content[0].text);
+      
+      assert(iosVersionData.appId === IOS_APP_ID, `App ID should be '${IOS_APP_ID}'`);
+      assert(iosVersionData.platform === "ios", "Platform should be 'ios'");
+      assert(iosVersionData.platformCapabilities !== undefined, "Platform capabilities should be defined");
+      assert(iosVersionData.currentVersion !== null, "Current version should be present");
+      assert(Array.isArray(iosVersionData.history), "History should be an array");
+      assert(iosVersionData.history.length > 0, "History should have at least one entry");
+      
+      // Log the version info - helpful for debugging
+      console.log(`  iOS version info: platform capabilities: ${JSON.stringify(iosVersionData.platformCapabilities)}`);
+      console.log(`  iOS history entries: ${iosVersionData.history.length}`);
+      
+      console.log('✅ get_version_history tool test passed for both platforms');
+    } catch (error) {
+      console.error('❌ get_version_history test failed:', error.message);
+      failedTests.push('get_version_history');
+    }
+    
   } catch (error) {
     console.error('Error during test execution:', error);
   } finally {
@@ -355,6 +516,27 @@ async function runTests() {
       // Exit with error code
       process.exit(1);
     }
+  }
+}
+
+/**
+ * Helper function to get minimal valid arguments for different tools
+ */
+function getMinimalArgs(toolName) {
+  switch (toolName) {
+    case 'search_app':
+      return { term: 'test', platform: 'android', num: 1 };
+    case 'get_app_details':
+    case 'analyze_reviews':
+    case 'get_pricing_details':
+    case 'get_version_history':
+      return { appId: ANDROID_APP_ID, platform: 'android' };
+    case 'analyze_top_keywords':
+      return { keyword: 'test', platform: 'android' };
+    case 'get_developer_info':
+      return { developerId: ANDROID_DEV_ID, platform: 'android' };
+    default:
+      return { platform: 'android' };
   }
 }
 

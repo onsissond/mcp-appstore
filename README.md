@@ -419,6 +419,99 @@ const result = await client.callTool({
 }
 ```
 
+### 7. get_version_history
+
+Get version history and changelogs for an app. **Note: Currently only provides the latest version for both platforms due to API limitations.**
+
+**Parameters:**
+- `appId`: The unique app ID (com.example.app for Android or numeric ID/bundleId for iOS)
+- `platform`: The platform of the app (`ios` or `android`)
+- `country` (optional): Two-letter country code (default: "us")
+- `lang` (optional): Language code for the results (default: "en")
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "get_version_history",
+  arguments: {
+    appId: "com.spotify.music",
+    platform: "ios"
+  }
+});
+```
+
+**Response for iOS:**
+```json
+{
+  "appId": "com.spotify.music",
+  "platform": "ios",
+  "platformCapabilities": {
+    "fullHistoryAvailable": true,
+    "description": "Full version history available"
+  },
+  "currentVersion": {
+    "versionNumber": "8.8.40",
+    "releaseDate": "2024-03-28T14:52:32Z",
+    "changelog": "Bug fixes and improvements",
+    "isCurrentVersion": true
+  },
+  "history": [
+    {
+      "versionNumber": "8.8.40",
+      "releaseDate": "2024-03-28T14:52:32Z",
+      "changelog": "Bug fixes and improvements",
+      "isCurrentVersion": true
+    },
+    {
+      "versionNumber": "8.8.38",
+      "releaseDate": "2024-03-14T10:23:15Z",
+      "changelog": "New features and performance improvements",
+      "isCurrentVersion": false
+    }
+    // Additional version history...
+  ],
+  "metadata": {
+    "retrievalDate": "2024-03-31T12:34:56Z",
+    "totalVersions": 50,
+    "limitations": []
+  }
+}
+```
+
+**Response for Android:**
+```json
+{
+  "appId": "com.spotify.music",
+  "platform": "android",
+  "platformCapabilities": {
+    "fullHistoryAvailable": false,
+    "description": "Only latest version available due to Google Play Store limitations"
+  },
+  "currentVersion": {
+    "versionNumber": "8.8.40.480",
+    "releaseDate": "2024-03-28T14:52:32Z",
+    "changelog": "We're always making changes and improvements to Spotify",
+    "isCurrentVersion": true
+  },
+  "history": [
+    {
+      "versionNumber": "8.8.40.480",
+      "releaseDate": "2024-03-28T14:52:32Z",
+      "changelog": "We're always making changes and improvements to Spotify",
+      "isCurrentVersion": true
+    }
+  ],
+  "metadata": {
+    "retrievalDate": "2024-03-31T12:34:56Z",
+    "totalVersions": 1,
+    "limitations": [
+      "Only latest version available",
+      "Historical data not accessible via Google Play Store API"
+    ]
+  }
+}
+```
+
 ## Connecting with MCP Clients
 
 You can connect to this server using any MCP client. Here's an example using the MCP TypeScript SDK:

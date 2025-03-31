@@ -1189,6 +1189,137 @@ server.tool(
   }
 );
 
+// Tool 7: Get version history and changelogs (platform limitations apply)
+server.tool(
+  "get_version_history",
+  {
+    appId: z.string().describe("The app ID to get version history for"),
+    platform: z.enum(["ios", "android"]).describe("The platform of the app (Note: Android only provides latest version)"),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code"),
+    lang: z.string().optional().default("en").describe("Language code for the results")
+  },
+  async ({ appId, platform, country, lang }) => {
+    try {
+      let versionInfo = {
+        appId,
+        platform,
+        platformCapabilities: {
+          fullHistoryAvailable: platform === "ios",
+          description: platform === "ios" 
+            ? "Full version history available" 
+            : "Only latest version available due to Google Play Store limitations"
+        },
+        currentVersion: null,
+        history: []
+      };
+
+      if (platform === "android") {
+        // Get app details from Google Play Store
+        const appDetails = await memoizedGplay.app({
+          appId,
+          country,
+          lang
+        });
+
+        // For Android, we can only get the current version
+        versionInfo.currentVersion = {
+          versionNumber: appDetails.version,
+          releaseDate: new Date(appDetails.updated).toISOString(),
+          changelog: appDetails.recentChanges || "No changelog provided",
+          isCurrentVersion: true
+        };
+
+        // Add current version to history array as well
+        versionInfo.history = [versionInfo.currentVersion];
+
+      } else {
+        // For iOS, first handle numeric vs bundle ID
+        const isNumericId = /^\d+$/.test(appId);
+        let numericId = appId;
+
+        try {
+          // Get app details from Apple App Store
+          const lookupParams = isNumericId 
+            ? { id: appId, country, lang } 
+            : { appId: appId, country, lang };
+          
+          console.error(`Getting app details for iOS app: ${JSON.stringify(lookupParams)}`);
+          const appDetails = await memoizedAppStore.app(lookupParams);
+          
+          if (!appDetails) {
+            throw new Error("No app details returned");
+          }
+          
+          // Create version info from the current version data
+          const currentVersion = {
+            versionNumber: appDetails.version || "Unknown version",
+            releaseDate: appDetails.updated 
+              ? new Date(appDetails.updated).toISOString() 
+              : new Date().toISOString(),
+            changelog: appDetails.releaseNotes || "No changelog provided",
+            isCurrentVersion: true
+          };
+          
+          // Set history array to just the current version
+          versionInfo.history = [currentVersion];
+          versionInfo.currentVersion = currentVersion;
+          
+          // Set platform capabilities - currently same as Android due to API limitations
+          versionInfo.platformCapabilities = {
+            fullHistoryAvailable: false,
+            description: "Only latest version available - API limitation (versionHistory function not available)"
+          };
+          
+          console.error(`iOS version info created from app details: ${JSON.stringify(currentVersion)}`);
+        } catch (error) {
+          console.error(`Error getting iOS app details: ${error.message}`);
+          
+          // Set empty history and null current version
+          versionInfo.history = [];
+          versionInfo.currentVersion = null;
+          
+          // Update platform capabilities
+          versionInfo.platformCapabilities = {
+            fullHistoryAvailable: false,
+            description: `Could not retrieve version information: ${error.message}`
+          };
+        }
+      }
+
+      // Add metadata about the response
+      const metadata = {
+        retrievalDate: new Date().toISOString(),
+        totalVersions: versionInfo.history.length,
+        limitations: platform === "android" 
+          ? ["Only latest version available", "Historical data not accessible via Google Play Store API"]
+          : []
+      };
+
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            ...versionInfo,
+            metadata
+          }, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            error: error.message,
+            appId,
+            platform
+          }, null, 2)
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
 // Helper function to determine app monetization model
 function determineMonetizationModel(pricingDetails) {
   if (!pricingDetails.basePrice.isFree) {
