@@ -964,6 +964,231 @@ server.tool(
   }
 );
 
+// Tool 6: Get comprehensive developer information
+server.tool(
+  "get_developer_info",
+  {
+    developerId: z.string().describe("The developer ID to get information for"),
+    platform: z.enum(["ios", "android"]).describe("The platform of the developer"),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code"),
+    lang: z.string().optional().default("en").describe("Language code for the results"),
+    includeApps: z.boolean().optional().default(true).describe("Whether to include the developer's apps in the response")
+  },
+  async ({ developerId, platform, country, lang, includeApps }) => {
+    try {
+      let developerInfo = {
+        developerId,
+        platform,
+        name: "",
+        website: null,
+        email: null,
+        address: null,
+        privacyPolicy: null,
+        supportContact: null,
+        totalApps: 0,
+        metrics: {
+          totalInstalls: 0,
+          averageRating: 0,
+          totalRatings: 0
+        },
+        apps: []
+      };
+
+      if (platform === "android") {
+        // Get developer's apps from Google Play Store
+        const apps = await memoizedGplay.developer({
+          devId: developerId,
+          country,
+          lang,
+          num: 100 // Get up to 100 apps
+        });
+
+        if (apps && apps.length > 0) {
+          // Get full details of the first app to extract developer info
+          const firstApp = await memoizedGplay.app({
+            appId: apps[0].appId,
+            country,
+            lang
+          });
+
+          // Set developer details
+          developerInfo = {
+            ...developerInfo,
+            name: firstApp.developer || developerId,
+            website: firstApp.developerWebsite || null,
+            email: firstApp.developerEmail || null,
+            address: firstApp.developerAddress || null,
+            privacyPolicy: firstApp.privacyPolicy || null,
+            totalApps: apps.length,
+            metrics: {
+              totalInstalls: 0,
+              averageRating: 0,
+              totalRatings: 0
+            }
+          };
+
+          // Calculate metrics across all apps
+          let totalRating = 0;
+          let totalRatings = 0;
+          let totalInstalls = 0;
+
+          if (includeApps) {
+            // Get full details for all apps
+            const appDetailsPromises = apps.map(app => 
+              memoizedGplay.app({
+                appId: app.appId,
+                country,
+                lang
+              }).catch(err => null)
+            );
+
+            const appDetails = await Promise.all(appDetailsPromises);
+            const validAppDetails = appDetails.filter(app => app !== null);
+
+            validAppDetails.forEach(app => {
+              if (app.score) totalRating += app.score;
+              if (app.ratings) totalRatings += app.ratings;
+              if (app.minInstalls) totalInstalls += app.minInstalls;
+            });
+
+            developerInfo.metrics = {
+              totalInstalls,
+              averageRating: totalRating / validAppDetails.length,
+              totalRatings
+            };
+
+            // Add normalized app information
+            developerInfo.apps = validAppDetails.map(app => ({
+              appId: app.appId,
+              title: app.title,
+              icon: app.icon,
+              score: app.score,
+              ratings: app.ratings,
+              installs: app.minInstalls,
+              price: app.price,
+              free: app.free,
+              category: app.genre,
+              url: app.url
+            }));
+          }
+        }
+      } else {
+        // For iOS, first get the numeric developer ID if not provided
+        const isNumericId = /^\d+$/.test(developerId);
+        let numericDevId = developerId;
+
+        if (!isNumericId) {
+          // Search for an app by this developer to get their numeric ID
+          const searchResults = await memoizedAppStore.search({
+            term: developerId,
+            num: 1,
+            country
+          });
+
+          if (searchResults && searchResults.length > 0) {
+            const firstApp = await memoizedAppStore.app({
+              appId: searchResults[0].appId,
+              country
+            });
+            numericDevId = firstApp.developerId;
+          }
+        }
+
+        // Get developer's apps from App Store
+        const apps = await memoizedAppStore.developer({
+          devId: numericDevId,
+          country,
+          lang
+        });
+
+        if (apps && apps.length > 0) {
+          // Get full details of the first app to extract developer info
+          const firstApp = await memoizedAppStore.app({
+            id: apps[0].id,
+            country,
+            lang
+          });
+
+          // Set developer details
+          developerInfo = {
+            ...developerInfo,
+            name: firstApp.developer || developerId,
+            website: firstApp.developerWebsite || null,
+            totalApps: apps.length,
+            metrics: {
+              totalInstalls: null, // App Store doesn't provide install numbers
+              averageRating: 0,
+              totalRatings: 0
+            }
+          };
+
+          if (includeApps) {
+            // Get full details for all apps
+            const appDetailsPromises = apps.map(app => 
+              memoizedAppStore.app({
+                id: app.id,
+                country,
+                lang,
+                ratings: true
+              }).catch(err => null)
+            );
+
+            const appDetails = await Promise.all(appDetailsPromises);
+            const validAppDetails = appDetails.filter(app => app !== null);
+
+            // Calculate metrics
+            let totalRating = 0;
+            let totalRatings = 0;
+
+            validAppDetails.forEach(app => {
+              if (app.score) totalRating += app.score;
+              if (app.ratings) totalRatings += app.ratings;
+            });
+
+            developerInfo.metrics = {
+              totalInstalls: null, // Not available in App Store
+              averageRating: totalRating / validAppDetails.length,
+              totalRatings
+            };
+
+            // Add normalized app information
+            developerInfo.apps = validAppDetails.map(app => ({
+              appId: app.appId,
+              title: app.title,
+              icon: app.icon,
+              score: app.score,
+              ratings: app.ratings,
+              price: app.price,
+              free: app.free,
+              category: app.primaryGenre,
+              url: app.url
+            }));
+          }
+        }
+      }
+
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify(developerInfo, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            error: error.message,
+            developerId,
+            platform
+          }, null, 2)
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
 // Helper function to determine app monetization model
 function determineMonetizationModel(pricingDetails) {
   if (!pricingDetails.basePrice.isFree) {

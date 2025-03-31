@@ -362,6 +362,63 @@ const result = await client.callTool({
 }
 ```
 
+### 6. get_developer_info
+
+Get comprehensive information about a developer/publisher and their portfolio of apps.
+
+**Parameters:**
+- `developerId`: The developer ID to get information for
+- `platform`: The platform of the developer (`ios` or `android`)
+- `country` (optional): Two-letter country code (default: "us")
+- `lang` (optional): Language code for the results (default: "en")
+- `includeApps` (optional): Whether to include the developer's apps in the response (default: true)
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "get_developer_info",
+  arguments: {
+    developerId: "Spotify AB",
+    platform: "android"
+  }
+});
+```
+
+**Response:**
+```json
+{
+  "developerId": "Spotify AB",
+  "platform": "android",
+  "name": "Spotify AB",
+  "website": "https://www.spotify.com",
+  "email": "android-support@spotify.com",
+  "address": "Regeringsgatan 19, Stockholm 111 53, Sweden",
+  "privacyPolicy": "https://www.spotify.com/legal/privacy-policy/",
+  "supportContact": "android-support@spotify.com",
+  "totalApps": 3,
+  "metrics": {
+    "totalInstalls": 1000000000,
+    "averageRating": 4.3,
+    "totalRatings": 22000000
+  },
+  "apps": [
+    {
+      "appId": "com.spotify.music",
+      "title": "Spotify: Music and Podcasts",
+      "icon": "https://play-lh.googleusercontent.com/...",
+      "score": 4.3,
+      "ratings": 15000000,
+      "installs": 1000000000,
+      "price": 0,
+      "free": true,
+      "category": "Music & Audio",
+      "url": "https://play.google.com/store/apps/details?id=com.spotify.music"
+    },
+    // Additional apps...
+  ]
+}
+```
+
 ## Connecting with MCP Clients
 
 You can connect to this server using any MCP client. Here's an example using the MCP TypeScript SDK:
