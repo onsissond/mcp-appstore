@@ -296,6 +296,72 @@ const result = await client.callTool({
 }
 ```
 
+### 5. get_pricing_details
+
+Get detailed pricing information and monetization model for an app.
+
+**Parameters:**
+- `appId`: The unique app ID (com.example.app for Android or numeric ID/bundleId for iOS)
+- `platform`: The platform of the app (`ios` or `android`)
+- `country` (optional): Two-letter country code (default: "us")
+- `lang` (optional): Language code for the results (default: "en")
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "get_pricing_details",
+  arguments: {
+    appId: "com.spotify.music",
+    platform: "android"
+  }
+});
+```
+
+**Response:**
+```json
+{
+  "appId": "com.spotify.music",
+  "platform": "android",
+  "basePrice": {
+    "amount": 0,
+    "currency": "USD",
+    "formattedPrice": "Free",
+    "isFree": true
+  },
+  "inAppPurchases": {
+    "offers": true,
+    "priceRange": "$0.99 - $14.99",
+    "items": [
+      {
+        "type": "unknown",
+        "price": "$9.99",
+        "isSubscription": true
+      },
+      {
+        "type": "unknown",
+        "price": "$4.99",
+        "isSubscription": false
+      }
+    ]
+  },
+  "subscriptions": {
+    "offers": true,
+    "items": [
+      {
+        "period": "monthly",
+        "price": "$9.99"
+      },
+      {
+        "period": "yearly",
+        "price": "$99.99"
+      }
+    ]
+  },
+  "adSupported": true,
+  "monetizationModel": "Freemium with ads and subscriptions"
+}
+```
+
 ## Connecting with MCP Clients
 
 You can connect to this server using any MCP client. Here's an example using the MCP TypeScript SDK:

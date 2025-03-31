@@ -786,6 +786,210 @@ server.tool(
   }
 );
 
+// Tool 5: Get detailed pricing information
+server.tool(
+  "get_pricing_details",
+  {
+    appId: z.string().describe("The app ID to get pricing details for"),
+    platform: z.enum(["ios", "android"]).describe("The platform of the app"),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code"),
+    lang: z.string().optional().default("en").describe("Language code for the results")
+  },
+  async ({ appId, platform, country, lang }) => {
+    try {
+      let appDetails;
+      let pricingDetails = {
+        appId,
+        platform,
+        basePrice: {
+          amount: 0,
+          currency: "USD",
+          formattedPrice: "Free",
+          isFree: true
+        },
+        inAppPurchases: {
+          offers: false,
+          priceRange: null,
+          items: []
+        },
+        subscriptions: {
+          offers: false,
+          items: []
+        }
+      };
+      
+      if (platform === "android") {
+        // Get app details from Google Play Store
+        appDetails = await memoizedGplay.app({
+          appId,
+          country,
+          lang
+        });
+        
+        // Extract basic pricing info
+        pricingDetails.basePrice = {
+          amount: appDetails.price || 0,
+          currency: appDetails.currency || "USD",
+          formattedPrice: appDetails.priceText || "Free",
+          isFree: appDetails.free === true
+        };
+        
+        // Extract IAP information
+        pricingDetails.inAppPurchases.offers = appDetails.offersIAP === true;
+        pricingDetails.inAppPurchases.priceRange = appDetails.IAPRange || null;
+        
+        // Extract subscription info (if available)
+        // Note: This is limited in Google Play Scraper
+        if (appDetails.adSupported) {
+          pricingDetails.adSupported = true;
+        }
+        
+        // Try to parse IAP items from description if available
+        if (appDetails.description && appDetails.offersIAP) {
+          const iapMatches = appDetails.description.match(/(\$[\d\.]+)|([\d\.]+ [A-Z]{3})/g);
+          if (iapMatches && iapMatches.length > 0) {
+            // Simple extraction of potential IAP prices from description
+            const uniquePrices = [...new Set(iapMatches)];
+            pricingDetails.inAppPurchases.items = uniquePrices.map(price => ({
+              type: "unknown", // Can't reliably determine from description
+              price,
+              isSubscription: price.toLowerCase().includes("month") || 
+                             price.toLowerCase().includes("year") || 
+                             price.toLowerCase().includes("annual")
+            })).slice(0, 5); // Limit to top 5 potential IAP prices
+          }
+        }
+      } else {
+        // Get app details from Apple App Store
+        // For iOS, we need to handle both numeric IDs and bundle IDs
+        const isNumericId = /^\d+$/.test(appId);
+        
+        const lookupParams = isNumericId 
+          ? { id: appId, country, lang } 
+          : { appId: appId, country, lang };
+        
+        appDetails = await memoizedAppStore.app({
+          ...lookupParams
+        });
+        
+        // Extract basic pricing info
+        pricingDetails.basePrice = {
+          amount: appDetails.price || 0,
+          currency: appDetails.currency || "USD",
+          formattedPrice: appDetails.price === 0 ? "Free" : `${appDetails.price} ${appDetails.currency}`,
+          isFree: appDetails.free === true
+        };
+        
+        // Extract in-app purchase information
+        // Note: App Store Scraper doesn't provide detailed IAP info directly
+        // We can try to extract from description and release notes
+        const hasPaidContent = appDetails.description && 
+          (appDetails.description.includes("in-app purchase") || 
+           appDetails.description.includes("subscription"));
+        
+        if (hasPaidContent) {
+          pricingDetails.inAppPurchases.offers = true;
+          
+          // Try to extract potential subscription information
+          const subscriptionMatches = appDetails.description && appDetails.description.match(
+            /(monthly|annual|yearly|week|subscription).{1,30}(\$[\d\.]+|[\d\.]+ [A-Z]{3})/gi
+          );
+          
+          if (subscriptionMatches && subscriptionMatches.length > 0) {
+            pricingDetails.subscriptions.offers = true;
+            
+            // Simple extraction of potential subscription info from description
+            const uniqueSubs = [...new Set(subscriptionMatches.map(s => s.trim()))];
+            pricingDetails.subscriptions.items = uniqueSubs.map(sub => {
+              let period = "unknown";
+              if (sub.toLowerCase().includes("month")) period = "monthly";
+              else if (sub.toLowerCase().includes("year") || sub.toLowerCase().includes("annual")) period = "yearly";
+              else if (sub.toLowerCase().includes("week")) period = "weekly";
+              
+              // Extract price with regex
+              const priceMatch = sub.match(/(\$[\d\.]+)|([\d\.]+ [A-Z]{3})/);
+              const price = priceMatch ? priceMatch[0] : "Price unknown";
+              
+              return {
+                period,
+                price
+              };
+            }).slice(0, 3); // Limit to top 3 potential subscription options
+          }
+          
+          // Try to extract other IAP information
+          const iapMatches = appDetails.description && 
+            appDetails.description.match(/in-app purchase.{1,30}(\$[\d\.]+|[\d\.]+ [A-Z]{3})/gi);
+          
+          if (iapMatches && iapMatches.length > 0) {
+            // Simple extraction of potential IAP prices from description
+            const uniqueIaps = [...new Set(iapMatches.map(s => s.trim()))];
+            const pricesOnly = uniqueIaps.map(iap => {
+              const priceMatch = iap.match(/(\$[\d\.]+)|([\d\.]+ [A-Z]{3})/);
+              return priceMatch ? priceMatch[0] : null;
+            }).filter(Boolean);
+            
+            if (pricesOnly.length > 0) {
+              pricingDetails.inAppPurchases.items = pricesOnly.map(price => ({
+                type: "consumable", // Assumption - can't reliably determine
+                price
+              })).slice(0, 5); // Limit to top 5 potential IAP prices
+            }
+          }
+        }
+      }
+      
+      // Add monetization model categorization
+      pricingDetails.monetizationModel = determineMonetizationModel(pricingDetails);
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify(pricingDetails, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            error: error.message,
+            appId,
+            platform
+          }, null, 2)
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Helper function to determine app monetization model
+function determineMonetizationModel(pricingDetails) {
+  if (!pricingDetails.basePrice.isFree) {
+    // Paid app
+    return pricingDetails.inAppPurchases.offers ? 
+      "Paid app with in-app purchases" : 
+      "Paid app (premium)";
+  } else if (pricingDetails.subscriptions.offers) {
+    // Free app with subscriptions
+    return pricingDetails.adSupported ? 
+      "Freemium with ads and subscriptions" : 
+      "Freemium with subscriptions";
+  } else if (pricingDetails.inAppPurchases.offers) {
+    // Free app with IAP
+    return pricingDetails.adSupported ? 
+      "Freemium with ads and in-app purchases" : 
+      "Freemium with in-app purchases";
+  } else if (pricingDetails.adSupported) {
+    // Free with ads only
+    return "Free with ads";
+  } else {
+    // Completely free
+    return "Completely free";
+  }
+}
+
 // Start the server
 async function main() {
   try {
