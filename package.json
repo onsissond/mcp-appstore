@@ -1,0 +1,30 @@
+{
+  "name": "mcp-appstore",
+  "version": "1.0.0",
+  "description": "MCP Server for App Store Scrapers",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js",
+    "mock-test": "node mock-test.js",
+    "demo": "node demo.js"
+  },
+  "keywords": [
+    "mcp",
+    "app-store",
+    "google-play",
+    "scraper"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "app-store-scraper": "^0.17.0",
+    "google-play-scraper": "^9.1.1",
+    "zod": "^3.22.4"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
