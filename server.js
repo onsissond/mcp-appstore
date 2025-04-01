@@ -40,11 +40,12 @@ const server = new McpServer({
 server.tool(
   "search_app",
   {
-    term: z.string().describe("The search term to look up"),
-    platform: z.enum(["ios", "android"]).describe("The platform to search on (ios or android)"),
-    num: z.number().min(1).max(250).optional().default(10).describe("Number of results to return (max 250)"),
-    country: z.string().length(2).optional().default("us").describe("Two-letter country code")
+    term: z.string().describe("The search term to look up (e.g., 'photo editor', 'Spotify')."),
+    platform: z.enum(["ios", "android"]).describe("The platform to search on ('ios' for Apple App Store, 'android' for Google Play Store)."),
+    num: z.number().min(1).max(250).optional().default(10).describe("Maximum number of app results to return (1-250, default 10)."),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code for the App Store/Play Store region (e.g., 'us', 'de', 'gb'). Affects ranking and availability. Default 'us'.")
   },
+  z.function().describe("Searches the specified app store (iOS or Android) for apps matching the search term. Returns a standardized list of basic app details including ID, title, developer, icon, score, and price."),
   async ({ term, platform, num, country }) => {
     try {
       let results;
@@ -128,21 +129,24 @@ server.tool(
 server.tool(
   "get_app_details",
   {
-    appId: z.string().describe("The app ID to get details for"),
-    platform: z.enum(["ios", "android"]).describe("The platform of the app"),
-    country: z.string().length(2).optional().default("us").describe("Two-letter country code"),
-    lang: z.string().optional().default("en").describe("Language code for the results")
+    appId: z.string().describe("The unique identifier for the app. For Android: the package name (e.g., 'com.google.android.gm'). For iOS: the numeric ID (e.g., '553834731') or the bundle ID (e.g., 'com.midasplayer.apps.candycrushsaga')."),
+    platform: z.enum(["ios", "android"]).describe("The platform of the app ('ios' or 'android')."),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code for store localization (e.g., 'us', 'de'). Affects availability and potentially some metadata. Default 'us'."),
+    lang: z.string().optional().describe("Language code for the results (e.g., 'en', 'de'). If not provided, defaults to the 'country' code. If 'country' is also missing, defaults to 'en'. Determines the language of text fields like description and recent changes.")
   },
+  z.function().describe("Retrieves comprehensive details for a specific app using its ID and platform. Includes description, developer info, ratings, release details, category, and more. Handles different ID types for iOS."),
   async ({ appId, platform, country, lang }) => {
     try {
       let appDetails;
-      
+      // If lang is not explicitly set, default it to the country code
+      const effectiveLang = lang || country || 'en';
+
       if (platform === "android") {
         // Get app details from Google Play Store
         appDetails = await memoizedGplay.app({
           appId,
           country,
-          lang
+          lang: effectiveLang // Use effectiveLang instead of lang directly
         });
         
         // Normalize Android app details
@@ -254,12 +258,13 @@ server.tool(
 server.tool(
   "analyze_top_keywords",
   {
-    keyword: z.string().describe("The keyword to analyze"),
-    platform: z.enum(["ios", "android"]).describe("The platform to analyze"),
-    num: z.number().optional().default(10).describe("Number of apps to analyze"),
-    country: z.string().length(2).optional().default("us").describe("Two-letter country code"),
-    lang: z.string().optional().default("en").describe("Language code for the results")
+    keyword: z.string().describe("The keyword or search term to analyze (e.g., 'meditation app', 'puzzle games')."),
+    platform: z.enum(["ios", "android"]).describe("The platform (app store) to analyze ('ios' or 'android')."),
+    num: z.number().optional().default(10).describe("Number of top apps ranking for the keyword to analyze (1-50, default 10)."),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code for store localization. Default 'us'."),
+    lang: z.string().optional().default("en").describe("Language code for results. Default 'en'.")
   },
+  z.function().describe("Analyzes the top apps ranking for a given keyword on a specific platform. It retrieves the top apps, calculates metrics like average rating and category distribution, identifies dominant brands, and estimates competition level based on developer diversity."),
   async ({ keyword, platform, num, country, lang }) => {
     try {
       let results = [];
@@ -416,13 +421,14 @@ server.tool(
 server.tool(
   "analyze_reviews",
   {
-    appId: z.string().describe("The app ID to analyze reviews for"),
-    platform: z.enum(["ios", "android"]).describe("The platform of the app"),
-    num: z.number().optional().default(100).describe("Number of reviews to analyze"),
-    country: z.string().length(2).optional().default("us").describe("Two-letter country code"),
-    lang: z.string().optional().default("en").describe("Language code for results"),
-    sort: z.enum(["newest", "rating", "helpfulness"]).optional().default("newest").describe("How to sort the reviews")
+    appId: z.string().describe("The unique identifier for the app (Android package name, iOS numeric ID or bundle ID)."),
+    platform: z.enum(["ios", "android"]).describe("The platform of the app ('ios' or 'android')."),
+    num: z.number().optional().default(100).describe("Target number of reviews to analyze (1-1000, default 100). Note: Actual number may be less due to API limitations or available reviews. For iOS, fetching requires multiple requests and is capped at page 10."),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code for reviews localization. Default 'us'."),
+    lang: z.string().optional().default("en").describe("Language code for filtering reviews (results may be less accurate if language doesn't match review content). Default 'en'."),
+    sort: z.enum(["newest", "rating", "helpfulness"]).optional().default("newest").describe("Sorting order for reviews: 'newest', 'rating' (highest/lowest first, platform dependent), 'helpfulness'. Default 'newest'.")
   },
+  z.function().describe("Fetches and analyzes recent user reviews for a specific app. Performs basic sentiment analysis (positive/negative/neutral), extracts common keywords, identifies potential themes (e.g., bugs, pricing), calculates sentiment and rating distribution, and highlights recent issues. Sentiment and keyword analysis uses simple word lists and may not capture complex nuances."),
   async ({ appId, platform, num, country, lang, sort }) => {
     try {
       let reviews = [];
@@ -790,11 +796,12 @@ server.tool(
 server.tool(
   "get_pricing_details",
   {
-    appId: z.string().describe("The app ID to get pricing details for"),
-    platform: z.enum(["ios", "android"]).describe("The platform of the app"),
-    country: z.string().length(2).optional().default("us").describe("Two-letter country code"),
-    lang: z.string().optional().default("en").describe("Language code for the results")
+    appId: z.string().describe("The unique identifier for the app (Android package name, iOS numeric ID or bundle ID)."),
+    platform: z.enum(["ios", "android"]).describe("The platform of the app ('ios' or 'android')."),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code for store localization (affects currency and price). Default 'us'."),
+    lang: z.string().optional().default("en").describe("Language code for results. Default 'en'.")
   },
+  z.function().describe("Retrieves pricing details for an app, including base price, currency, and whether it's free. Attempts to identify in-app purchases (IAPs) and subscriptions, but details may be limited or inferred from descriptions, especially for iOS. Determines and returns the overall monetization model (e.g., 'Free with ads', 'Freemium with subscriptions')."),
   async ({ appId, platform, country, lang }) => {
     try {
       let appDetails;
@@ -968,12 +975,13 @@ server.tool(
 server.tool(
   "get_developer_info",
   {
-    developerId: z.string().describe("The developer ID to get information for"),
-    platform: z.enum(["ios", "android"]).describe("The platform of the developer"),
-    country: z.string().length(2).optional().default("us").describe("Two-letter country code"),
-    lang: z.string().optional().default("en").describe("Language code for the results"),
-    includeApps: z.boolean().optional().default(true).describe("Whether to include the developer's apps in the response")
+    developerId: z.string().describe("The developer identifier. For Android: the name (e.g., 'Google LLC') or ID ('570031...'). For iOS: the numeric artist ID (e.g., '284882218') or the developer name ('Facebook'). If a name is provided for iOS, the tool will attempt to find the numeric ID."),
+    platform: z.enum(["ios", "android"]).describe("The platform associated with the developer ('ios' or 'android')."),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code for store localization. Default 'us'."),
+    lang: z.string().optional().default("en").describe("Language code for results. Default 'en'."),
+    includeApps: z.boolean().optional().default(true).describe("Whether to fetch and include details of the developer's apps in the response (up to 100 for Android, potentially more for iOS). Setting to false returns only developer metadata.")
   },
+  z.function().describe("Fetches information about a specific app developer/publisher, including their name, contact details (if available), and optionally, a list of their published apps. Calculates aggregate metrics like total apps, average rating, and total ratings (Android also includes estimated total installs; iOS install data is unavailable)."),
   async ({ developerId, platform, country, lang, includeApps }) => {
     try {
       let developerInfo = {
@@ -1193,11 +1201,12 @@ server.tool(
 server.tool(
   "get_version_history",
   {
-    appId: z.string().describe("The app ID to get version history for"),
-    platform: z.enum(["ios", "android"]).describe("The platform of the app (Note: Android only provides latest version)"),
-    country: z.string().length(2).optional().default("us").describe("Two-letter country code"),
-    lang: z.string().optional().default("en").describe("Language code for the results")
+    appId: z.string().describe("The unique identifier for the app (Android package name, iOS numeric ID or bundle ID)."),
+    platform: z.enum(["ios", "android"]).describe("The platform of the app. Note: Due to current API limitations, **only the latest version details are reliably returned for both platforms.**"),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code for store localization. Default 'us'."),
+    lang: z.string().optional().default("en").describe("Language code for the results (e.g., changelog text). Default 'en'.")
   },
+  z.function().describe("Retrieves the version history and associated changelogs (release notes) for a specific app. **IMPORTANT LIMITATION:** Currently, due to underlying library constraints, this tool only reliably returns details for the **latest version** for both Android and iOS, not the full historical data."),
   async ({ appId, platform, country, lang }) => {
     try {
       let versionInfo = {
@@ -1267,7 +1276,7 @@ server.tool(
           // Set platform capabilities - currently same as Android due to API limitations
           versionInfo.platformCapabilities = {
             fullHistoryAvailable: false,
-            description: "Only latest version available - API limitation (versionHistory function not available)"
+            description: "Only latest version available - API limitation (versionHistory function not available or unreliable)"
           };
           
           console.error(`iOS version info created from app details: ${JSON.stringify(currentVersion)}`);
