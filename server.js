@@ -1,8 +1,21 @@
 /**
- * MCP Server for App Store Scrapers - Simple Version
+ * MCP Server for App Store Scrapers
  * 
- * This server provides tools to search and analyze apps from both
- * Google Play Store and Apple App Store.
+ * This server provides tools to search, analyze, and extract data from both
+ * Google Play Store and Apple App Store. It leverages the 'google-play-scraper' 
+ * and 'app-store-scraper' libraries to fetch information.
+ * 
+ * Capabilities include:
+ * - Searching for apps by keywords across both platforms
+ * - Getting detailed app information (ratings, reviews, pricing, etc.)
+ * - Analyzing keywords for competitive intelligence
+ * - Processing reviews with basic sentiment analysis
+ * - Extracting pricing models and in-app purchase information
+ * - Retrieving developer portfolios and information
+ * - Fetching version history and changelog data (with platform limitations)
+ * 
+ * Note: The API respects store rate limits with memoization to cache results
+ * and avoid hitting throttling limits.
  */
 
 import { z } from "zod";
@@ -40,12 +53,11 @@ const server = new McpServer({
 server.tool(
   "search_app",
   {
-    term: z.string().describe("The search term to look up (e.g., 'photo editor', 'Spotify')."),
+    term: z.string().describe("The search term to look up (e.g., 'panda', 'spotify', 'photo editor'). This is required."),
     platform: z.enum(["ios", "android"]).describe("The platform to search on ('ios' for Apple App Store, 'android' for Google Play Store)."),
-    num: z.number().min(1).max(250).optional().default(10).describe("Maximum number of app results to return (1-250, default 10)."),
+    num: z.number().min(1).max(250).optional().default(10).describe("Number of results to return (1-250, default 10). For Android max is 250, for iOS typically defaults to 50."),
     country: z.string().length(2).optional().default("us").describe("Two-letter country code for the App Store/Play Store region (e.g., 'us', 'de', 'gb'). Affects ranking and availability. Default 'us'.")
   },
-  z.function().describe("Searches the specified app store (iOS or Android) for apps matching the search term. Returns a standardized list of basic app details including ID, title, developer, icon, score, and price."),
   async ({ term, platform, num, country }) => {
     try {
       let results;
@@ -132,21 +144,18 @@ server.tool(
     appId: z.string().describe("The unique identifier for the app. For Android: the package name (e.g., 'com.google.android.gm'). For iOS: the numeric ID (e.g., '553834731') or the bundle ID (e.g., 'com.midasplayer.apps.candycrushsaga')."),
     platform: z.enum(["ios", "android"]).describe("The platform of the app ('ios' or 'android')."),
     country: z.string().length(2).optional().default("us").describe("Two-letter country code for store localization (e.g., 'us', 'de'). Affects availability and potentially some metadata. Default 'us'."),
-    lang: z.string().optional().describe("Language code for the results (e.g., 'en', 'de'). If not provided, defaults to the 'country' code. If 'country' is also missing, defaults to 'en'. Determines the language of text fields like description and recent changes.")
+    lang: z.string().optional().default("en").describe("Language code for the results (e.g., 'en', 'de'). If not provided, defaults to the 'country' code. If 'country' is also missing, defaults to 'en'. Determines the language of text fields like description and recent changes.")
   },
-  z.function().describe("Retrieves comprehensive details for a specific app using its ID and platform. Includes description, developer info, ratings, release details, category, and more. Handles different ID types for iOS."),
   async ({ appId, platform, country, lang }) => {
     try {
       let appDetails;
-      // If lang is not explicitly set, default it to the country code
-      const effectiveLang = lang || country || 'en';
-
+      
       if (platform === "android") {
         // Get app details from Google Play Store
         appDetails = await memoizedGplay.app({
           appId,
           country,
-          lang: effectiveLang // Use effectiveLang instead of lang directly
+          lang
         });
         
         // Normalize Android app details
@@ -259,12 +268,11 @@ server.tool(
   "analyze_top_keywords",
   {
     keyword: z.string().describe("The keyword or search term to analyze (e.g., 'meditation app', 'puzzle games')."),
-    platform: z.enum(["ios", "android"]).describe("The platform (app store) to analyze ('ios' or 'android')."),
-    num: z.number().optional().default(10).describe("Number of top apps ranking for the keyword to analyze (1-50, default 10)."),
+    platform: z.enum(["ios", "android"]).describe("The platform (app store) to analyze ('ios' for Apple App Store, 'android' for Google Play Store)."),
+    num: z.number().optional().default(10).describe("Number of top apps ranking for the keyword to analyze (1-50, default 10). These apps will be fetched with full details to provide comprehensive analysis."),
     country: z.string().length(2).optional().default("us").describe("Two-letter country code for store localization. Default 'us'."),
     lang: z.string().optional().default("en").describe("Language code for results. Default 'en'.")
   },
-  z.function().describe("Analyzes the top apps ranking for a given keyword on a specific platform. It retrieves the top apps, calculates metrics like average rating and category distribution, identifies dominant brands, and estimates competition level based on developer diversity."),
   async ({ keyword, platform, num, country, lang }) => {
     try {
       let results = [];
@@ -428,7 +436,6 @@ server.tool(
     lang: z.string().optional().default("en").describe("Language code for filtering reviews (results may be less accurate if language doesn't match review content). Default 'en'."),
     sort: z.enum(["newest", "rating", "helpfulness"]).optional().default("newest").describe("Sorting order for reviews: 'newest', 'rating' (highest/lowest first, platform dependent), 'helpfulness'. Default 'newest'.")
   },
-  z.function().describe("Fetches and analyzes recent user reviews for a specific app. Performs basic sentiment analysis (positive/negative/neutral), extracts common keywords, identifies potential themes (e.g., bugs, pricing), calculates sentiment and rating distribution, and highlights recent issues. Sentiment and keyword analysis uses simple word lists and may not capture complex nuances."),
   async ({ appId, platform, num, country, lang, sort }) => {
     try {
       let reviews = [];
@@ -801,7 +808,6 @@ server.tool(
     country: z.string().length(2).optional().default("us").describe("Two-letter country code for store localization (affects currency and price). Default 'us'."),
     lang: z.string().optional().default("en").describe("Language code for results. Default 'en'.")
   },
-  z.function().describe("Retrieves pricing details for an app, including base price, currency, and whether it's free. Attempts to identify in-app purchases (IAPs) and subscriptions, but details may be limited or inferred from descriptions, especially for iOS. Determines and returns the overall monetization model (e.g., 'Free with ads', 'Freemium with subscriptions')."),
   async ({ appId, platform, country, lang }) => {
     try {
       let appDetails;
@@ -981,7 +987,6 @@ server.tool(
     lang: z.string().optional().default("en").describe("Language code for results. Default 'en'."),
     includeApps: z.boolean().optional().default(true).describe("Whether to fetch and include details of the developer's apps in the response (up to 100 for Android, potentially more for iOS). Setting to false returns only developer metadata.")
   },
-  z.function().describe("Fetches information about a specific app developer/publisher, including their name, contact details (if available), and optionally, a list of their published apps. Calculates aggregate metrics like total apps, average rating, and total ratings (Android also includes estimated total installs; iOS install data is unavailable)."),
   async ({ developerId, platform, country, lang, includeApps }) => {
     try {
       let developerInfo = {
@@ -1206,7 +1211,6 @@ server.tool(
     country: z.string().length(2).optional().default("us").describe("Two-letter country code for store localization. Default 'us'."),
     lang: z.string().optional().default("en").describe("Language code for the results (e.g., changelog text). Default 'en'.")
   },
-  z.function().describe("Retrieves the version history and associated changelogs (release notes) for a specific app. **IMPORTANT LIMITATION:** Currently, due to underlying library constraints, this tool only reliably returns details for the **latest version** for both Android and iOS, not the full historical data."),
   async ({ appId, platform, country, lang }) => {
     try {
       let versionInfo = {
@@ -1276,7 +1280,7 @@ server.tool(
           // Set platform capabilities - currently same as Android due to API limitations
           versionInfo.platformCapabilities = {
             fullHistoryAvailable: false,
-            description: "Only latest version available - API limitation (versionHistory function not available or unreliable)"
+            description: "Only latest version available - API limitation (versionHistory function not available)"
           };
           
           console.error(`iOS version info created from app details: ${JSON.stringify(currentVersion)}`);
