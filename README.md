@@ -1,6 +1,6 @@
 # App Store Scraper MCP Server
 
-This is an MCP (Model Context Protocol) server that provides tools for searching and analyzing apps from both Google Play Store and Apple App Store.
+This is an MCP (Model Context Protocol) server that provides tools for searching and analyzing apps from both the Google Play Store and Apple App Store. Perfect for ASO (App Store Search Optimization).
 
 Built by [AppReply.co](https://appreply.co). For more information, see our [MCP documentation](https://appreply.co/docs/mcp/overview).
 
