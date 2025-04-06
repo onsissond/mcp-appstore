@@ -2,6 +2,8 @@
 
 This is an MCP (Model Context Protocol) server that provides tools for searching and analyzing apps from both Google Play Store and Apple App Store.
 
+Built by [AppReply.co](https://appreply.co). For more information, see our [MCP documentation](https://appreply.co/docs/mcp/overview).
+
 ## Installation
 
 ```bash
