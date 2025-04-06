@@ -23,7 +23,7 @@ npm install
 npm start
 ```
 
-This will start the server in stdio mode, which is compatible with MCP clients.
+This will start the server in studio mode, which is compatible with MCP clients.
 
 ## Available Tools
 
