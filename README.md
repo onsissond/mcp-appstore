@@ -10,7 +10,7 @@ Built by [AppReply.co](https://appreply.co). For more information, see our [MCP 
 
 ```bash
 # Clone the repository
-git clone https://github.com/vladnfx/mcp-appstore.git
+git clone https://github.com/appreply-co/mcp-appstore.git
 cd mcp-appstore
 
 # Install dependencies
