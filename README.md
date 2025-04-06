@@ -8,7 +8,7 @@ Built by [AppReply.co](https://appreply.co). For more information, see our [MCP 
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/vladnfx/appstore-mcp.git
 cd app-store-scraper-mcp
 
 # Install dependencies
