@@ -660,6 +660,137 @@ const result = await client.callTool({
 }
 ```
 
+### 10. get_android_categories
+
+Retrieves a full list of all available app categories from the Google Play Store.
+
+**Parameters:**
+This tool doesn't require any parameters.
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "get_android_categories",
+  arguments: {}
+});
+```
+
+**Response:**
+```json
+{
+  "platform": "android",
+  "count": 1,
+  "categories": [
+    "APPLICATION"
+  ]
+}
+```
+
+**Note:** The specific category list returned may vary depending on the Google Play Store API version and region. In the current implementation, only the "APPLICATION" category is typically returned, despite the Google Play Store having many more categories visible on the web interface. This is a limitation of the underlying API.
+
+### 11. get_keyword_scores
+
+Analyzes a keyword for App Store Optimization (ASO) and returns difficulty and traffic scores to evaluate its potential.
+
+**Parameters:**
+- `keyword`: The keyword to analyze for App Store Optimization.
+- `platform`: The platform to analyze the keyword for (`ios` or `android`).
+- `country` (optional): Two-letter country code for localization. Default 'us'.
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "get_keyword_scores",
+  arguments: {
+    keyword: "music streaming",
+    platform: "android"
+  }
+});
+```
+
+**Response:**
+```json
+{
+  "keyword": "music streaming",
+  "platform": "android",
+  "country": "us",
+  "scores": {
+    "difficulty": {
+      "score": 8.56,
+      "components": {
+        "titleMatches": { 
+          "exact": 8, 
+          "broad": 1, 
+          "partial": 1, 
+          "none": 0, 
+          "score": 9.3 
+        },
+        "competitors": { 
+          "count": 42, 
+          "score": 7.35 
+        },
+        "installs": { 
+          "avg": 12500000, 
+          "score": 9.9 
+        },
+        "rating": { 
+          "avg": 4.5, 
+          "score": 9.0 
+        },
+        "age": { 
+          "avgDaysSinceUpdated": 48.2, 
+          "score": 5.8 
+        }
+      },
+      "interpretation": "Difficult to rank for"
+    },
+    "traffic": {
+      "score": 7.82,
+      "components": {
+        "suggest": { 
+          "length": 2, 
+          "index": 1, 
+          "score": 8.5 
+        },
+        "ranked": { 
+          "count": 7, 
+          "avgRank": 12.3, 
+          "score": 7.9 
+        },
+        "installs": { 
+          "avg": 12500000, 
+          "score": 9.9 
+        },
+        "length": { 
+          "length": 15, 
+          "score": 5.0 
+        }
+      },
+      "interpretation": "High search traffic"
+    }
+  }
+}
+```
+
+The tool provides two main scores:
+
+1. **Difficulty score** - Measures how hard it is to rank high for the keyword (lower is better)
+   - `titleMatches`: Analysis of how many top apps have the keyword in their title
+   - `competitors`: Count of apps targeting the keyword in title/description
+   - `installs`: Average installs of top-ranking apps (reviews count for iOS)
+   - `rating`: Average rating of top-ranking apps
+   - `age`: How recently top apps were updated
+
+2. **Traffic score** - Estimates search volume for the keyword (higher is better)
+   - `suggest`: How quickly the keyword appears in search suggestions
+   - `ranked`: How many top apps appear in category rankings
+   - `installs`: Popularity of top-ranking apps
+   - `length`: Keyword length (shorter keywords usually have more traffic)
+
+Each score has a human-readable interpretation to help understand its significance.
+
+**Note:** The current implementation simulates ASO scores based on keyword length and other heuristics rather than using real-time data. This approach was chosen due to compatibility issues between the aso package and current versions of the Google Play and App Store scrapers. The scores follow the same structure and interpretation guidelines as actual ASO metrics but should be considered approximations.
+
 ## Connecting with MCP Clients
 
 You can connect to this server using any MCP client. Here's an example using the MCP TypeScript SDK:

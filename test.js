@@ -11,6 +11,8 @@
  * - get_version_history
  * - fetch_reviews
  * - get_similar_apps
+ * - get_android_categories
+ * - get_keyword_scores
  */
 
 import assert from 'assert';
@@ -106,7 +108,9 @@ async function runTests() {
         "get_pricing_details",
         "get_developer_info",
         "get_version_history",
-        "get_similar_apps"
+        "get_similar_apps",
+        "get_android_categories",
+        "get_keyword_scores"
       ];
       
       // Check each tool exists
@@ -631,6 +635,94 @@ async function runTests() {
       failedTests.push('get_similar_apps');
     }
     
+    // Test 12: Test get_android_categories tool
+    try {
+      console.log('\nTest 12: Test get_android_categories tool');
+      await wait(1000);
+      
+      console.log('  Getting Android app categories...');
+      const categoriesResult = await client.callTool({
+        name: "get_android_categories",
+        arguments: {}
+      });
+      
+      // Parse the result
+      const categoriesData = JSON.parse(categoriesResult.content[0].text);
+      
+      assert(categoriesData.platform === "android", "Platform should be 'android'");
+      assert(categoriesData.count > 0, "Should return at least one category");
+      assert(Array.isArray(categoriesData.categories), "Categories should be an array");
+      assert(categoriesData.categories.length > 0, "Categories array should not be empty");
+      assert(typeof categoriesData.categories[0] === 'string', "Category should be a string");
+      
+      // Check if common categories are present
+      const commonCategories = ['APPLICATION', 'GAME', 'PRODUCTIVITY', 'TOOLS', 'EDUCATION'];
+      const hasCommonCategories = commonCategories.some(category => 
+        categoriesData.categories.includes(category)
+      );
+      
+      assert(hasCommonCategories, "Should contain at least one common category");
+      
+      console.log('✅ get_android_categories tool test passed');
+    } catch (error) {
+      console.error('❌ get_android_categories test failed:', error.message);
+      failedTests.push('get_android_categories');
+    }
+    
+    // Test 13: Test get_keyword_scores tool
+    try {
+      console.log('\nTest 13: Test get_keyword_scores tool');
+      await wait(1000);
+      
+      // Test keyword scores for Android
+      console.log('  Getting keyword scores for "music streaming" on Android...');
+      const androidKeywordResult = await client.callTool({
+        name: "get_keyword_scores",
+        arguments: {
+          keyword: "music streaming",
+          platform: "android"
+        }
+      });
+      
+      // Parse the result
+      const androidKeywordData = JSON.parse(androidKeywordResult.content[0].text);
+      
+      assert(androidKeywordData.keyword === "music streaming", "Keyword should be 'music streaming'");
+      assert(androidKeywordData.platform === "android", "Platform should be 'android'");
+      assert(androidKeywordData.scores, "Scores should be present");
+      assert(typeof androidKeywordData.scores.difficulty.score === 'number', "Difficulty score should be a number");
+      assert(typeof androidKeywordData.scores.traffic.score === 'number', "Traffic score should be a number");
+      assert(androidKeywordData.scores.difficulty.interpretation, "Difficulty interpretation should be present");
+      assert(androidKeywordData.scores.traffic.interpretation, "Traffic interpretation should be present");
+      
+      // Test keyword scores for iOS
+      await wait(1000);
+      console.log('  Getting keyword scores for "music streaming" on iOS...');
+      const iosKeywordResult = await client.callTool({
+        name: "get_keyword_scores",
+        arguments: {
+          keyword: "music streaming",
+          platform: "ios"
+        }
+      });
+      
+      // Parse the result
+      const iosKeywordData = JSON.parse(iosKeywordResult.content[0].text);
+      
+      assert(iosKeywordData.keyword === "music streaming", "Keyword should be 'music streaming'");
+      assert(iosKeywordData.platform === "ios", "Platform should be 'ios'");
+      assert(iosKeywordData.scores, "Scores should be present");
+      assert(typeof iosKeywordData.scores.difficulty.score === 'number', "Difficulty score should be a number");
+      assert(typeof iosKeywordData.scores.traffic.score === 'number', "Traffic score should be a number");
+      assert(iosKeywordData.scores.difficulty.interpretation, "Difficulty interpretation should be present");
+      assert(iosKeywordData.scores.traffic.interpretation, "Traffic interpretation should be present");
+      
+      console.log('✅ get_keyword_scores tool test passed for both platforms');
+    } catch (error) {
+      console.error('❌ get_keyword_scores test failed:', error.message);
+      failedTests.push('get_keyword_scores');
+    }
+    
   } catch (error) {
     console.error('Error during test execution:', error);
   } finally {
@@ -677,6 +769,10 @@ function getMinimalArgs(toolName) {
       return { keyword: 'test', platform: 'android' };
     case 'get_developer_info':
       return { developerId: ANDROID_DEV_ID, platform: 'android' };
+    case 'get_android_categories':
+      return {};
+    case 'get_keyword_scores':
+      return { keyword: 'music streaming', platform: 'android' };
     default:
       return { platform: 'android' };
   }
