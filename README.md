@@ -772,24 +772,255 @@ const result = await client.callTool({
 }
 ```
 
-The tool provides two main scores:
-
-1. **Difficulty score** - Measures how hard it is to rank high for the keyword (lower is better)
-   - `titleMatches`: Analysis of how many top apps have the keyword in their title
-   - `competitors`: Count of apps targeting the keyword in title/description
-   - `installs`: Average installs of top-ranking apps (reviews count for iOS)
-   - `rating`: Average rating of top-ranking apps
-   - `age`: How recently top apps were updated
-
-2. **Traffic score** - Estimates search volume for the keyword (higher is better)
-   - `suggest`: How quickly the keyword appears in search suggestions
-   - `ranked`: How many top apps appear in category rankings
-   - `installs`: Popularity of top-ranking apps
-   - `length`: Keyword length (shorter keywords usually have more traffic)
-
 Each score has a human-readable interpretation to help understand its significance.
 
 **Note:** The current implementation simulates ASO scores based on keyword length and other heuristics rather than using real-time data. This approach was chosen due to compatibility issues between the aso package and current versions of the Google Play and App Store scrapers. The scores follow the same structure and interpretation guidelines as actual ASO metrics but should be considered approximations.
+
+### 12. suggest_keywords_by_category
+
+Get keyword suggestions based on apps in the same category as the target app.
+
+**Parameters:**
+- `appId`: The unique app ID (com.example.app for Android or numeric ID/bundleId for iOS)
+- `platform`: The platform of the app (`ios` or `android`)
+- `num` (optional): Number of keyword suggestions to return (default: 30)
+- `country` (optional): Two-letter country code (default: "us")
+- `lang` (optional): Language code for the results (default: "en")
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "suggest_keywords_by_category",
+  arguments: {
+    appId: "com.spotify.music",
+    platform: "android",
+    num: 20
+  }
+});
+```
+
+**Response:**
+```json
+{
+  "appId": "com.spotify.music",
+  "platform": "android",
+  "strategy": "category",
+  "description": "Keywords commonly used by apps in the same category as the target app",
+  "suggestions": [
+    "music", 
+    "audio", 
+    "player", 
+    "listen", 
+    "songs"
+  ],
+  "count": 5
+}
+```
+
+### 13. suggest_keywords_by_similarity
+
+Get keyword suggestions based on similar apps (for Android) or "customers also bought" apps (for iOS).
+
+**Parameters:**
+- `appId`: The unique app ID (com.example.app for Android or numeric ID/bundleId for iOS)
+- `platform`: The platform of the app (`ios` or `android`)
+- `num` (optional): Number of keyword suggestions to return (default: 30)
+- `country` (optional): Two-letter country code (default: "us")
+- `lang` (optional): Language code for the results (default: "en")
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "suggest_keywords_by_similarity",
+  arguments: {
+    appId: "com.spotify.music",
+    platform: "android",
+    num: 20
+  }
+});
+```
+
+**Response:**
+```json
+{
+  "appId": "com.spotify.music",
+  "platform": "android",
+  "strategy": "similarity",
+  "description": "Keywords commonly used by apps marked as 'similar' to the target app in Google Play",
+  "suggestions": [
+    "music", 
+    "streaming", 
+    "player", 
+    "audio", 
+    "playlist"
+  ],
+  "count": 5
+}
+```
+
+### 14. suggest_keywords_by_competition
+
+Get keyword suggestions based on apps that target the same keywords as the target app.
+
+**Parameters:**
+- `appId`: The unique app ID (com.example.app for Android or numeric ID/bundleId for iOS)
+- `platform`: The platform of the app (`ios` or `android`)
+- `num` (optional): Number of keyword suggestions to return (default: 30)
+- `country` (optional): Two-letter country code (default: "us")
+- `lang` (optional): Language code for the results (default: "en")
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "suggest_keywords_by_competition",
+  arguments: {
+    appId: "com.spotify.music",
+    platform: "android",
+    num: 20
+  }
+});
+```
+
+**Response:**
+```json
+{
+  "appId": "com.spotify.music",
+  "platform": "android",
+  "strategy": "competition",
+  "description": "Keywords commonly used by apps that target the same keywords as the target app",
+  "suggestions": [
+    "music", 
+    "streaming", 
+    "songs", 
+    "playlist", 
+    "audio"
+  ],
+  "count": 5
+}
+```
+
+### 15. suggest_keywords_by_apps
+
+Get keyword suggestions based on an arbitrary list of apps.
+
+**Parameters:**
+- `apps`: Array of app IDs to analyze (package names for Android, numeric IDs or bundle IDs for iOS)
+- `platform`: The platform of the apps (`ios` or `android`)
+- `num` (optional): Number of keyword suggestions to return (default: 30)
+- `country` (optional): Two-letter country code (default: "us")
+- `lang` (optional): Language code for the results (default: "en")
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "suggest_keywords_by_apps",
+  arguments: {
+    apps: ["com.spotify.music", "com.pandora.android", "deezer.android.app"],
+    platform: "android",
+    num: 20
+  }
+});
+```
+
+**Response:**
+```json
+{
+  "apps": ["com.spotify.music", "com.pandora.android", "deezer.android.app"],
+  "platform": "android",
+  "strategy": "arbitrary_apps",
+  "description": "Keywords commonly used by the specified list of apps",
+  "suggestions": [
+    "music", 
+    "streaming", 
+    "player", 
+    "audio", 
+    "songs"
+  ],
+  "count": 5
+}
+```
+
+### 16. suggest_keywords_by_seeds
+
+Get keyword suggestions based on seed keywords, by looking at apps that target these keywords.
+
+**Parameters:**
+- `keywords`: Array of seed keywords to find related keywords
+- `platform`: The platform to analyze (`ios` or `android`)
+- `num` (optional): Number of keyword suggestions to return (default: 30)
+- `country` (optional): Two-letter country code (default: "us")
+- `lang` (optional): Language code for the results (default: "en")
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "suggest_keywords_by_seeds",
+  arguments: {
+    keywords: ["music streaming", "playlist", "podcasts"],
+    platform: "android",
+    num: 20
+  }
+});
+```
+
+**Response:**
+```json
+{
+  "keywords": ["music streaming", "playlist", "podcasts"],
+  "platform": "android",
+  "strategy": "seed_keywords",
+  "description": "Keywords commonly used by apps that target the provided seed keywords",
+  "suggestions": [
+    "music", 
+    "audio", 
+    "player", 
+    "streaming", 
+    "podcast"
+  ],
+  "count": 5
+}
+```
+
+### 17. suggest_keywords_by_search
+
+Get keyword suggestions based on search completion results for seed keywords. This strategy often works better for iOS than Android.
+
+**Parameters:**
+- `keywords`: Array of seed keywords to use for search completion suggestions
+- `platform`: The platform to analyze (`ios` or `android`)
+- `num` (optional): Number of keyword suggestions to return (default: 30)
+- `country` (optional): Two-letter country code (default: "us")
+- `lang` (optional): Language code for the results (default: "en")
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "suggest_keywords_by_search",
+  arguments: {
+    keywords: ["music streaming", "playlist", "podcasts"],
+    platform: "ios",
+    num: 20
+  }
+});
+```
+
+**Response:**
+```json
+{
+  "keywords": ["music streaming", "playlist", "podcasts"],
+  "platform": "ios",
+  "strategy": "search_hints",
+  "description": "Keywords based on App Store search completion results and apps targeting those keywords (works best for iOS)",
+  "suggestions": [
+    "music", 
+    "streaming", 
+    "music player", 
+    "free music", 
+    "podcast player"
+  ],
+  "count": 5
+}
+```
 
 ## Connecting with MCP Clients
 
