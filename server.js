@@ -486,7 +486,6 @@ server.tool(
         while (allReviews.length < num && page <= 10) { // App Store only allows 10 pages
           try {
             // For iOS apps, we need to use id instead of appId
-            // The app-store-scraper reviews method requires the numeric ID
             let iosParams = {};
             
             // Check if the appId is already a numeric ID
@@ -783,6 +782,177 @@ server.tool(
           }, null, 2)
         }]
       };
+    } catch (error) {
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            error: error.message,
+            appId,
+            platform
+          }, null, 2)
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Tool to fetch raw reviews without analysis
+server.tool(
+  "fetch_reviews",
+  {
+    appId: z.string().describe("The unique identifier for the app (Android package name, iOS numeric ID or bundle ID)."),
+    platform: z.enum(["ios", "android"]).describe("The platform of the app ('ios' or 'android')."),
+    num: z.number().optional().default(100).describe("Number of reviews to fetch (1-1000, default 100). Note: Actual number may be less due to API limitations. For iOS, limited to 10 pages max."),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code for the App Store/Play Store region. Default 'us'."),
+    lang: z.string().optional().default("en").describe("Language code for reviews. Default 'en'."),
+    sort: z.enum(["newest", "rating", "helpfulness"]).optional().default("newest").describe("Sorting order for reviews: 'newest', 'rating', 'helpfulness'. Default 'newest'.")
+  },
+  async ({ appId, platform, num, country, lang, sort }) => {
+    try {
+      let reviews = [];
+      
+      // Fetch reviews from the appropriate platform
+      if (platform === "android") {
+        let sortType;
+        switch (sort) {
+          case "newest":
+            sortType = gplay.sort.NEWEST;
+            break;
+          case "rating":
+            sortType = gplay.sort.RATING;
+            break;
+          case "helpfulness":
+            sortType = gplay.sort.HELPFULNESS;
+            break;
+          default:
+            sortType = gplay.sort.NEWEST;
+        }
+        
+        const result = await memoizedGplay.reviews({
+          appId,
+          num: Math.min(num, 1000), // Limit to 1000 reviews max
+          sort: sortType,
+          country,
+          lang
+        });
+        
+        reviews = result.data || [];
+        
+        // Android reviews have developer replies included if available
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              appId,
+              platform,
+              count: reviews.length,
+              reviews: reviews.map(review => ({
+                id: review.id,
+                userName: review.userName,
+                userImage: review.userImage,
+                score: review.score,
+                scoreText: review.scoreText,
+                title: review.title || "",
+                text: review.text,
+                date: review.date,
+                url: review.url,
+                version: review.version,
+                thumbsUp: review.thumbsUp,
+                replyDate: review.replyDate,
+                replyText: review.replyText,
+                hasDeveloperResponse: !!review.replyText
+              }))
+            }, null, 2)
+          }]
+        };
+      } else {
+        let page = 1;
+        let allReviews = [];
+        let sortType;
+        
+        switch (sort) {
+          case "newest":
+            sortType = appStore.sort.RECENT;
+            break;
+          case "helpfulness":
+            sortType = appStore.sort.HELPFUL;
+            break;
+          default:
+            sortType = appStore.sort.RECENT;
+        }
+        
+        // For iOS, we might need to fetch multiple pages
+        while (allReviews.length < num && page <= 10) { // App Store only allows 10 pages
+          try {
+            // For iOS apps, we need to use id instead of appId
+            let iosParams = {};
+            
+            // Check if the appId is already a numeric ID
+            if (/^\d+$/.test(appId)) {
+              iosParams = {
+                id: appId,
+                page,
+                sort: sortType,
+                country
+              };
+            } else {
+              // First we need to fetch the app to get its numeric ID
+              try {
+                const appDetails = await memoizedAppStore.app({ appId, country });
+                iosParams = {
+                  id: appDetails.id.toString(),
+                  page,
+                  sort: sortType,
+                  country
+                };
+              } catch (appError) {
+                console.error(`Could not fetch app details for ${appId}:`, appError.message);
+                break;
+              }
+            }
+            
+            const pageReviews = await memoizedAppStore.reviews(iosParams);
+            
+            if (!pageReviews || pageReviews.length === 0) {
+              break; // No more reviews
+            }
+            
+            allReviews = [...allReviews, ...pageReviews];
+            page++;
+          } catch (err) {
+            console.error(`Error fetching reviews page ${page}:`, err);
+            break;
+          }
+        }
+        
+        reviews = allReviews.slice(0, num);
+        
+        // iOS reviews don't include developer responses in the API
+        return {
+          content: [{ 
+            type: "text", 
+            text: JSON.stringify({
+              appId,
+              platform,
+              count: reviews.length,
+              reviews: reviews.map(review => ({
+                id: review.id,
+                userName: review.userName,
+                userUrl: review.userUrl,
+                score: review.score,
+                title: review.title,
+                text: review.text,
+                date: review.updated,
+                version: review.version,
+                url: review.url,
+                hasDeveloperResponse: false // App Store API doesn't provide this info
+              }))
+            }, null, 2)
+          }]
+        };
+      }
     } catch (error) {
       return {
         content: [{ 
@@ -1314,6 +1484,111 @@ server.tool(
           text: JSON.stringify({
             ...versionInfo,
             metadata
+          }, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            error: error.message,
+            appId,
+            platform
+          }, null, 2)
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Tool to get similar apps
+server.tool(
+  "get_similar_apps",
+  {
+    appId: z.string().describe("The unique identifier for the app (Android package name, iOS numeric ID or bundle ID)."),
+    platform: z.enum(["ios", "android"]).describe("The platform of the app ('ios' or 'android')."),
+    country: z.string().length(2).optional().default("us").describe("Two-letter country code for the App Store/Play Store region. Default 'us'."),
+    lang: z.string().optional().default("en").describe("Language code for the results. Default 'en'."),
+    num: z.number().optional().default(20).describe("Number of similar apps to return (default 20).")
+  },
+  async ({ appId, platform, country, lang, num }) => {
+    try {
+      let similarApps = [];
+      
+      if (platform === "android") {
+        // Get similar apps from Google Play Store
+        const apps = await memoizedGplay.similar({
+          appId,
+          country,
+          lang
+        });
+        
+        // Limit results to num
+        similarApps = apps.slice(0, num).map(app => ({
+          id: app.appId,
+          appId: app.appId,
+          title: app.title,
+          summary: app.summary || "",
+          developer: app.developer,
+          developerId: app.developerId,
+          icon: app.icon,
+          score: app.score,
+          scoreText: app.scoreText,
+          price: app.price,
+          free: app.free,
+          currency: app.currency || "USD",
+          platform: "android",
+          url: app.url
+        }));
+      } else {
+        // For iOS, we need to check if appId is a numeric ID or bundle ID
+        const isNumericId = /^\d+$/.test(appId);
+        
+        // Get similar apps from Apple App Store
+        let iosParams = {};
+        
+        if (isNumericId) {
+          iosParams = {
+            id: appId,
+            country
+          };
+        } else {
+          iosParams = {
+            appId,
+            country
+          };
+        }
+        
+        const apps = await memoizedAppStore.similar(iosParams);
+        
+        // Limit results to num
+        similarApps = apps.slice(0, num).map(app => ({
+          id: app.id.toString(),
+          appId: app.appId,
+          title: app.title,
+          summary: app.description || "",
+          developer: app.developer,
+          developerId: app.developerId,
+          icon: app.icon,
+          score: app.score,
+          price: app.price,
+          free: app.free === true,
+          currency: app.currency,
+          platform: "ios",
+          url: app.url
+        }));
+      }
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: JSON.stringify({
+            appId,
+            platform,
+            count: similarApps.length,
+            similarApps
           }, null, 2)
         }]
       };

@@ -300,7 +300,151 @@ const result = await client.callTool({
 }
 ```
 
-### 5. get_pricing_details
+### 5. fetch_reviews
+
+Fetches raw reviews without analysis, including developer responses for Android apps.
+
+**Parameters:**
+- `appId`: The unique app ID (com.example.app for Android or numeric ID/bundleId for iOS)
+- `platform`: The platform of the app (`ios` or `android`)
+- `country` (optional): Two-letter country code (default: "us")
+- `lang` (optional): Language code for the results (default: "en")
+- `sort` (optional): How to sort the reviews (`newest`, `rating`, `helpfulness`) (default: "newest")
+- `num` (optional): Number of reviews to fetch (default: 100, max: 1000)
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "fetch_reviews",
+  arguments: {
+    appId: "com.spotify.music",
+    platform: "android",
+    sort: "helpfulness",
+    num: 50
+  }
+});
+```
+
+**Response for Android:**
+```json
+{
+  "appId": "com.spotify.music",
+  "platform": "android",
+  "count": 50,
+  "reviews": [
+    {
+      "id": "gp:AOqpTOFmAVORqfWGcaqfF39ftwFjGkjecjvjXnC3g_uL0NtVGlrrqm8X2XUWx0WydH3C9afZlPUizYVZAfARLuk",
+      "userName": "John Smith",
+      "userImage": "https://lh3.googleusercontent.com/-hBGvzn3XlhQ/AAAAAAAAAAI/AAAAAAAAOw0/L4GY9KrQ-DU/w96-c-h96/photo.jpg",
+      "score": 4,
+      "scoreText": "4",
+      "title": "Great app but one issue",
+      "text": "Love the app but please fix the offline mode issue.",
+      "date": "2023-01-15T18:31:42.174Z",
+      "url": "https://play.google.com/store/apps/details?id=com.spotify.music&reviewId=...",
+      "version": "8.7.30.1356",
+      "thumbsUp": 56,
+      "replyDate": "2023-01-16T10:22:33.174Z",
+      "replyText": "Thanks for your feedback! We're working on a fix for the offline mode issue.",
+      "hasDeveloperResponse": true
+    },
+    // Additional reviews...
+  ]
+}
+```
+
+**Response for iOS:**
+```json
+{
+  "appId": "324684580",
+  "platform": "ios",
+  "count": 50,
+  "reviews": [
+    {
+      "id": "6934893147",
+      "userName": "SpotifyUser2023",
+      "userUrl": "https://itunes.apple.com/us/reviews/id324568166",
+      "score": 5,
+      "title": "Best music app ever!",
+      "text": "I've been using Spotify for years and it keeps getting better.",
+      "date": "2023-02-10T14:23:17-07:00",
+      "version": "8.8.12",
+      "url": "https://itunes.apple.com/us/review?id=324684580&type=Purple%20Software",
+      "hasDeveloperResponse": false
+    },
+    // Additional reviews...
+  ]
+}
+```
+
+### 6. get_similar_apps
+
+Returns a list of similar or related apps ("Customers also bought" for iOS, "Similar apps" for Android).
+
+**Parameters:**
+- `appId`: The unique app ID (com.example.app for Android or numeric ID/bundleId for iOS)
+- `platform`: The platform of the app (`ios` or `android`)
+- `country` (optional): Two-letter country code (default: "us")
+- `lang` (optional): Language code for the results (default: "en")
+- `num` (optional): Number of similar apps to return (default: 20)
+
+**Example usage:**
+```javascript
+const result = await client.callTool({
+  name: "get_similar_apps",
+  arguments: {
+    appId: "com.spotify.music",
+    platform: "android",
+    num: 10
+  }
+});
+```
+
+**Response:**
+```json
+{
+  "appId": "com.spotify.music",
+  "platform": "android",
+  "count": 10,
+  "similarApps": [
+    {
+      "id": "com.pandora.android",
+      "appId": "com.pandora.android",
+      "title": "Pandora: Music & Podcasts",
+      "summary": "Listen to your favorite music and podcasts anywhere",
+      "developer": "Pandora",
+      "developerId": "Pandora+Media%2C+Inc.",
+      "icon": "https://play-lh.googleusercontent.com/b3MuISSUiJ7mzJAb4GnwgVc8AH-Lj1iXZC-JqU8Bh-OlzXHRqOUkXmhdrLzGUgUVqA4=s180",
+      "score": 4.3,
+      "scoreText": "4.3",
+      "price": 0,
+      "free": true,
+      "currency": "USD",
+      "platform": "android",
+      "url": "https://play.google.com/store/apps/details?id=com.pandora.android&hl=en&gl=us"
+    },
+    {
+      "id": "deezer.android.app",
+      "appId": "deezer.android.app",
+      "title": "Deezer: Music & Podcast Player",
+      "summary": "Stream music, create playlists and enjoy podcasts",
+      "developer": "Deezer",
+      "developerId": "Deezer+Mobile",
+      "icon": "https://play-lh.googleusercontent.com/mOkjDMwP8I79j8jFZ9nP88tRpZrPGwOoFxJC9pWQj1_vR8M4JM_wR7-8UBWwdOUGgw=s180",
+      "score": 4.1,
+      "scoreText": "4.1",
+      "price": 0,
+      "free": true,
+      "currency": "USD",
+      "platform": "android", 
+      "url": "https://play.google.com/store/apps/details?id=deezer.android.app&hl=en&gl=us"
+    },
+    // Additional apps...
+  ]
+}
+```
+
+### 7. get_pricing_details
 
 Get detailed pricing information and monetization model for an app.
 
@@ -366,7 +510,7 @@ const result = await client.callTool({
 }
 ```
 
-### 6. get_developer_info
+### 8. get_developer_info
 
 Get comprehensive information about a developer/publisher and their portfolio of apps.
 
@@ -423,7 +567,7 @@ const result = await client.callTool({
 }
 ```
 
-### 7. get_version_history
+### 9. get_version_history
 
 Get version history and changelogs for an app. **Note: Currently only provides the latest version for both platforms due to API limitations.**
 

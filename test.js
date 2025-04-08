@@ -9,6 +9,8 @@
  * - get_pricing_details
  * - get_developer_info
  * - get_version_history
+ * - fetch_reviews
+ * - get_similar_apps
  */
 
 import assert from 'assert';
@@ -100,9 +102,11 @@ async function runTests() {
         "get_app_details", 
         "analyze_top_keywords", 
         "analyze_reviews",
+        "fetch_reviews",
         "get_pricing_details",
         "get_developer_info",
-        "get_version_history"
+        "get_version_history",
+        "get_similar_apps"
       ];
       
       // Check each tool exists
@@ -333,9 +337,77 @@ async function runTests() {
       failedTests.push('analyze_reviews');
     }
     
-    // Test 7: Test get_pricing_details tool
+    // Test 7: Test fetch_reviews tool
     try {
-      console.log('\nTest 7: Test get_pricing_details tool');
+      console.log('\nTest 7: Test fetch_reviews tool');
+      await wait(1000);
+      
+      // Test Android raw reviews
+      console.log('  Fetching raw reviews for Spotify on Android...');
+      const androidRawReviewsResult = await client.callTool({
+        name: "fetch_reviews",
+        arguments: {
+          appId: ANDROID_APP_ID,
+          platform: "android",
+          num: 20
+        }
+      });
+      
+      // Parse the result
+      const androidRawReviewsData = JSON.parse(androidRawReviewsResult.content[0].text);
+      
+      assert(androidRawReviewsData.appId === ANDROID_APP_ID, `App ID should be '${ANDROID_APP_ID}'`);
+      assert(androidRawReviewsData.platform === "android", "Platform should be 'android'");
+      assert(androidRawReviewsData.count > 0, "Count should be greater than 0");
+      assert(Array.isArray(androidRawReviewsData.reviews), "Reviews should be an array");
+      assert(androidRawReviewsData.reviews.length > 0, "Reviews should not be empty");
+      
+      // Check that we have the raw review structure with developer responses
+      const firstAndroidReview = androidRawReviewsData.reviews[0];
+      assert(firstAndroidReview.id, "Review should have an ID");
+      assert(firstAndroidReview.userName, "Review should have a user name");
+      assert(typeof firstAndroidReview.score === 'number', "Review should have a score");
+      assert(typeof firstAndroidReview.text === 'string', "Review should have text");
+      assert('hasDeveloperResponse' in firstAndroidReview, "Review should indicate if there's a developer response");
+      
+      // Test iOS raw reviews
+      await wait(1000);
+      console.log('  Fetching raw reviews for Facebook on iOS...');
+      const iosRawReviewsResult = await client.callTool({
+        name: "fetch_reviews",
+        arguments: {
+          appId: IOS_APP_ID_REVIEWS,
+          platform: "ios",
+          num: 20
+        }
+      });
+      
+      // Parse the result
+      const iosRawReviewsData = JSON.parse(iosRawReviewsResult.content[0].text);
+      
+      assert(iosRawReviewsData.appId === IOS_APP_ID_REVIEWS, `App ID should be '${IOS_APP_ID_REVIEWS}'`);
+      assert(iosRawReviewsData.platform === "ios", "Platform should be 'ios'");
+      assert(iosRawReviewsData.count > 0, "Count should be greater than 0");
+      assert(Array.isArray(iosRawReviewsData.reviews), "Reviews should be an array");
+      assert(iosRawReviewsData.reviews.length > 0, "Reviews should not be empty");
+      
+      // Check iOS review structure
+      const firstIosReview = iosRawReviewsData.reviews[0];
+      assert(firstIosReview.id, "Review should have an ID");
+      assert(firstIosReview.userName, "Review should have a user name");
+      assert(typeof firstIosReview.score === 'number', "Review should have a score");
+      assert(typeof firstIosReview.text === 'string', "Review should have text");
+      assert('hasDeveloperResponse' in firstIosReview, "Review should indicate if there's a developer response");
+      
+      console.log('✅ fetch_reviews tool test passed for both platforms');
+    } catch (error) {
+      console.error('❌ fetch_reviews test failed:', error.message);
+      failedTests.push('fetch_reviews');
+    }
+    
+    // Test 8: Test get_pricing_details tool
+    try {
+      console.log('\nTest 8: Test get_pricing_details tool');
       await wait(1000);
       
       // Test Android pricing
@@ -383,9 +455,9 @@ async function runTests() {
       failedTests.push('get_pricing_details');
     }
     
-    // Test 8: Test get_developer_info tool
+    // Test 9: Test get_developer_info tool
     try {
-      console.log('\nTest 8: Test get_developer_info tool');
+      console.log('\nTest 9: Test get_developer_info tool');
       await wait(1000);
       
       // Test Android developer info
@@ -435,9 +507,9 @@ async function runTests() {
       failedTests.push('get_developer_info');
     }
     
-    // Test 9: Test get_version_history tool
+    // Test 10: Test get_version_history tool
     try {
-      console.log('\nTest 9: Test get_version_history tool');
+      console.log('\nTest 10: Test get_version_history tool');
       await wait(1000);
       
       // Test Android version history (limited to current version)
@@ -491,6 +563,74 @@ async function runTests() {
       failedTests.push('get_version_history');
     }
     
+    // Test 11: Test get_similar_apps tool
+    try {
+      console.log('\nTest 11: Test get_similar_apps tool');
+      await wait(1000);
+      
+      // Test Android similar apps
+      console.log('  Getting similar apps for Spotify on Android...');
+      const androidSimilarResult = await client.callTool({
+        name: "get_similar_apps",
+        arguments: {
+          appId: ANDROID_APP_ID,
+          platform: "android",
+          num: 5
+        }
+      });
+      
+      // Parse the result
+      const androidSimilarData = JSON.parse(androidSimilarResult.content[0].text);
+      
+      assert(androidSimilarData.appId === ANDROID_APP_ID, `App ID should be '${ANDROID_APP_ID}'`);
+      assert(androidSimilarData.platform === "android", "Platform should be 'android'");
+      assert(androidSimilarData.count > 0, "Should return at least one similar app");
+      assert(Array.isArray(androidSimilarData.similarApps), "Similar apps should be an array");
+      
+      // Check the structure of the first similar app
+      if (androidSimilarData.similarApps.length > 0) {
+        const firstApp = androidSimilarData.similarApps[0];
+        assert(firstApp.id, "App should have an ID");
+        assert(firstApp.title, "App should have a title");
+        assert(firstApp.developer, "App should have a developer");
+        assert(firstApp.platform === "android", "App platform should be 'android'");
+      }
+      
+      // Test iOS similar apps
+      await wait(1000);
+      console.log('  Getting similar apps for Spotify on iOS...');
+      const iosSimilarResult = await client.callTool({
+        name: "get_similar_apps",
+        arguments: {
+          appId: IOS_APP_ID,
+          platform: "ios",
+          num: 5
+        }
+      });
+      
+      // Parse the result
+      const iosSimilarData = JSON.parse(iosSimilarResult.content[0].text);
+      
+      assert(iosSimilarData.appId === IOS_APP_ID, `App ID should be '${IOS_APP_ID}'`);
+      assert(iosSimilarData.platform === "ios", "Platform should be 'ios'");
+      assert(iosSimilarData.count >= 0, "Similar apps count should be defined"); // Some apps might not have similar apps
+      assert(Array.isArray(iosSimilarData.similarApps), "Similar apps should be an array");
+      
+      // Check the structure of the first similar app (if any)
+      if (iosSimilarData.similarApps.length > 0) {
+        const firstApp = iosSimilarData.similarApps[0];
+        assert(firstApp.id, "App should have an ID");
+        assert(firstApp.title, "App should have a title");
+        assert(firstApp.developer, "App should have a developer");
+        assert(firstApp.platform === "ios", "App platform should be 'ios'");
+      }
+      
+      console.log('✅ get_similar_apps tool test passed for both platforms');
+    } catch (error) {
+      console.error('❌ get_similar_apps test failed:', error.message);
+      failedTests.push('get_similar_apps');
+    }
+    
   } catch (error) {
     console.error('Error during test execution:', error);
   } finally {
@@ -528,8 +668,10 @@ function getMinimalArgs(toolName) {
       return { term: 'test', platform: 'android', num: 1 };
     case 'get_app_details':
     case 'analyze_reviews':
+    case 'fetch_reviews':
     case 'get_pricing_details':
     case 'get_version_history':
+    case 'get_similar_apps':
       return { appId: ANDROID_APP_ID, platform: 'android' };
     case 'analyze_top_keywords':
       return { keyword: 'test', platform: 'android' };
