@@ -25,6 +25,19 @@ npm start
 
 This will start the server in studio mode, which is compatible with MCP clients.
 
+The launch command is
+
+```bash
+{
+  "mcpServers": {
+    "mcp-appstore": {
+      "command": "node /destination/server.js",
+      "cwd": "/destination"
+    }
+  }
+}
+```
+
 ## Available Tools
 
 The server provides the following tools:
