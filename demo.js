@@ -8,7 +8,7 @@
  * - analyze_reviews
  */
 
-import { McpClient } from '@modelcontextprotocol/sdk/client/index.js';
+import { Client as McpClient } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 async function main() {
@@ -20,23 +20,24 @@ async function main() {
     
     // Connect to the MCP server
     console.log("\n📱 Connecting to MCP server...");
-    const transport = new StdioClientTransport("server.js");
-    client = new McpClient();
+    const transport = new StdioClientTransport({ command: "node", args: ["server.js"] });
+    client = new McpClient({ name: "DemoClient", version: "1.0.0" });
     await client.connect(transport);
     
     console.log("✅ Connected to server");
     
     // Get server configuration and available tools
-    const config = await client.getConfig();
+    const config = await client.getServerVersion();
     console.log("\n🔍 Server Information:");
     console.log(`   Name: ${config.name}`);
     console.log(`   Version: ${config.version}`);
     console.log(`   Description: ${config.description}`);
     
-    const tools = await client.getTools();
+    const listToolsResult = await client.listTools();
+    const tools = listToolsResult.tools;
     console.log("\n🧰 Available Tools:");
-    Object.keys(tools).forEach(tool => {
-      console.log(`   - ${tool}`);
+    tools.forEach(tool => {
+      console.log(`   - ${tool.name}`);
     });
     
     // Demo 1: Search for an app
@@ -44,10 +45,13 @@ async function main() {
     console.log("---------------------------");
     console.log("Searching for 'Spotify' on Android...");
     
-    const searchResult = await client.invoke("search_app", {
-      term: "Spotify",
-      platform: "android",
-      num: 3
+    const searchResult = await client.callTool({
+      name: "search_app",
+      arguments: {
+        term: "Spotify",
+        platform: "android",
+        num: 3
+      }
     });
     
     const searchData = JSON.parse(searchResult.content[0].text);
@@ -66,9 +70,12 @@ async function main() {
     const appId = searchData.results[0].appId;
     console.log(`Getting details for '${searchData.results[0].title}' (${appId})...`);
     
-    const detailsResult = await client.invoke("get_app_details", {
-      appId: appId,
-      platform: "android"
+    const detailsResult = await client.callTool({
+      name: "get_app_details",
+      arguments: {
+        appId: appId,
+        platform: "android"
+      }
     });
     
     const detailsData = JSON.parse(detailsResult.content[0].text);
@@ -88,10 +95,13 @@ async function main() {
     console.log("---------------------------");
     console.log("Analyzing keyword 'music streaming' on Android...");
     
-    const keywordResult = await client.invoke("analyze_top_keywords", {
-      keyword: "music streaming",
-      platform: "android",
-      num: 5
+    const keywordResult = await client.callTool({
+      name: "analyze_top_keywords",
+      arguments: {
+        keyword: "music streaming",
+        platform: "android",
+        num: 5
+      }
     });
     
     const keywordData = JSON.parse(keywordResult.content[0].text);
@@ -103,19 +113,22 @@ async function main() {
     });
     
     console.log("\nBrand presence:");
-    for (const [brand, presence] of Object.entries(keywordData.brandPresence)) {
-      console.log(`- ${brand}: ${presence.toFixed(2)}%`);
-    }
+    console.log(`  Top Brands: ${keywordData.brandPresence.topBrands.join(', ')}`);
+    console.log(`  Brand Dominance: ${(keywordData.brandPresence.brandDominance * 100).toFixed(0)}%`);
+    console.log(`  Competition Level: ${keywordData.brandPresence.competitionLevel}`);
     
     // Demo 4: Analyze reviews
     console.log("\n\n💬 DEMO 4: Review Analysis");
     console.log("---------------------------");
     console.log(`Analyzing reviews for '${appDetails.title}'...`);
     
-    const reviewsResult = await client.invoke("analyze_reviews", {
-      appId: appId,
-      platform: "android",
-      num: 50
+    const reviewsResult = await client.callTool({
+      name: "analyze_reviews",
+      arguments: {
+        appId: appId,
+        platform: "android",
+        num: 50
+      }
     });
     
     const reviewsData = JSON.parse(reviewsResult.content[0].text);
@@ -136,8 +149,8 @@ async function main() {
     });
     
     console.log("\nRecent issues mentioned:");
-    analysis.recentIssues.forEach((issue, index) => {
-      console.log(`- ${issue}`);
+    Object.entries(analysis.recentIssues).forEach(([issue, count]) => {
+      console.log(`- "${issue}" (mentioned ${count} times)`);
     });
     
   } catch (error) {
@@ -146,7 +159,7 @@ async function main() {
     // Disconnect from the server
     if (client) {
       console.log("\n👋 Disconnecting from server...");
-      await client.disconnect();
+      await client.close();
       console.log("✅ Disconnected successfully");
       console.log("\n📝 Demo completed");
     }

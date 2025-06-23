@@ -42,17 +42,34 @@ const itunesASO = aso('itunes');
 
 // Create an MCP server with detailed configuration
 const server = new McpServer({
-  name: "AppStore Scraper",
+  name: "mcp-appstore",
   version: "1.0.0",
   description: "Tools for searching and analyzing apps from Google Play and Apple App Store",
-  // Define capabilities for tools - this ensures getTools() works
   capabilities: {
     tools: {
-      // Enable tools capability with change notification
       listChanged: true
+    },
+    // Add server info capability
+    serverInfo: {
+      get: true
     }
   }
 });
+
+// Register server info
+server.serverInfo = {
+  name: "mcp-appstore",
+  version: "1.0.0",
+  description: "Tools for searching and analyzing apps from Google Play and Apple App Store",
+  capabilities: {
+    tools: {
+      listChanged: true
+    },
+    serverInfo: {
+      get: true
+    }
+  }
+};
 
 // Tool 1: Search for an app by name and platform
 server.tool(
@@ -1819,12 +1836,37 @@ function determineMonetizationModel(pricingDetails) {
 async function main() {
   try {
     const transport = new StdioServerTransport();
-    console.error("Starting App Store Scraper MCP server...");
+    console.error("MCP Server: Main function started.");
+    
+    // Configure transport to handle messages through the server
+    transport.onmessage = async (message) => {
+      try {
+        console.error(`MCP Server: Processing message: ${JSON.stringify(message)}`);
+        const response = await server.handleMessage(message);
+        console.error(`MCP Server: Sent response: ${JSON.stringify(response)}`);
+      } catch (err) {
+        console.error(`MCP Server: Error handling message:`, err);
+        // Send error response back to client
+        transport.send({
+          type: "error",
+          error: err.message,
+          requestId: message.requestId
+        });
+      }
+    };
+    
+    console.error("MCP Server: StdioServerTransport created and configured.");
     await server.connect(transport);
+    console.error("MCP Server: Connection established. Server info:", server.serverInfo);
+    // Log available tools using the tools capability
+    if (server.capabilities?.tools?.list) {
+      const tools = await server.capabilities.tools.list();
+      console.error("MCP Server: Available tools:", tools);
+    }
   } catch (error) {
-    console.error("Error starting MCP server:", error);
+    console.error("MCP Server: FATAL ERROR during startup:", error);
     process.exit(1);
   }
 }
 
-main(); 
+main();
